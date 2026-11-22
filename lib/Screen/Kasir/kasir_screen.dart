@@ -12,6 +12,12 @@ class KasirScreen extends StatefulWidget {
 }
 
 class _KasirScreenState extends State<KasirScreen> {
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _ticketsStream =
+      FirebaseFirestore.instance
+          .collection('ticket_types')
+          .where('isActive', isEqualTo: true)
+          .snapshots();
+
   final _currencyFormat = NumberFormat.currency(
     locale: 'id_ID',
     symbol: 'Rp',
@@ -42,9 +48,7 @@ class _KasirScreenState extends State<KasirScreen> {
   }
 
   void _setQuickCash(int amount) {
-    setState(() {
-      _cashReceivedController.text = amount.toString();
-    });
+    _cashReceivedController.text = amount.toString();
   }
 
   Future<void> _processCheckout(
@@ -283,12 +287,10 @@ class _KasirScreenState extends State<KasirScreen> {
 
   Widget _buildPosTab() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('ticket_types')
-          .where('isActive', isEqualTo: true)
-          .snapshots(),
+      stream: _ticketsStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -322,10 +324,6 @@ class _KasirScreenState extends State<KasirScreen> {
             totalQty += qty;
           }
         }
-
-        final cashInput =
-            int.tryParse(_cashReceivedController.text.trim()) ?? 0;
-        final previewChange = cashInput - totalAmount;
 
         return Column(
           children: [
@@ -454,45 +452,59 @@ class _KasirScreenState extends State<KasirScreen> {
                     ),
                     if (_paymentMethod == 'Tunai') ...[
                       const SizedBox(height: 10),
-                      TextField(
-                        controller: _cashReceivedController,
-                        keyboardType: TextInputType.number,
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          labelText: 'Uang Diterima (Rp)',
-                          isDense: true,
-                          border: const OutlineInputBorder(),
-                          suffixText: cashInput >= totalAmount
-                              ? 'Kembali: ${_currencyFormat.format(previewChange)}'
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            ActionChip(
-                              label: const Text('Uang Pas'),
-                              onPressed: () => _setQuickCash(totalAmount),
-                            ),
-                            const SizedBox(width: 6),
-                            ActionChip(
-                              label: const Text('Rp20.000'),
-                              onPressed: () => _setQuickCash(20000),
-                            ),
-                            const SizedBox(width: 6),
-                            ActionChip(
-                              label: const Text('Rp50.000'),
-                              onPressed: () => _setQuickCash(50000),
-                            ),
-                            const SizedBox(width: 6),
-                            ActionChip(
-                              label: const Text('Rp100.000'),
-                              onPressed: () => _setQuickCash(100000),
-                            ),
-                          ],
-                        ),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _cashReceivedController,
+                        builder: (context, value, _) {
+                          final cashInput =
+                              int.tryParse(value.text.trim()) ?? 0;
+                          final previewChange = cashInput - totalAmount;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextField(
+                                controller: _cashReceivedController,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: 'Uang Diterima (Rp)',
+                                  isDense: true,
+                                  border: const OutlineInputBorder(),
+                                  suffixText: cashInput >= totalAmount
+                                      ? 'Kembali: ${_currencyFormat.format(previewChange)}'
+                                      : null,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    ActionChip(
+                                      label: const Text('Uang Pas'),
+                                      onPressed: () =>
+                                          _setQuickCash(totalAmount),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    ActionChip(
+                                      label: const Text('Rp20.000'),
+                                      onPressed: () => _setQuickCash(20000),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    ActionChip(
+                                      label: const Text('Rp50.000'),
+                                      onPressed: () => _setQuickCash(50000),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    ActionChip(
+                                      label: const Text('Rp100.000'),
+                                      onPressed: () => _setQuickCash(100000),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                     const SizedBox(height: 12),
