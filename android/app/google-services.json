@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "53068860896",
+    "project_id": "lembah-wilis",
+    "storage_bucket": "lembah-wilis.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:53068860896:android:9a712d040f210afec16f85",
+        "android_client_info": {
+          "package_name": "com.example.lembah_wilis"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB5Ac3oi71h6G9sh_khEnN-19bj-WdvbJU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
