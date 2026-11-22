@@ -80,13 +80,13 @@ class AuthWrapper extends StatelessWidget {
             }
 
             final data = roleSnapshot.data!.data() as Map<String, dynamic>;
-            final role = data['role'] ?? 'kasir';
-            final name = data['name'] ?? user.email!;
+            final role = data['role'] as String? ?? 'kasir';
+            final name = data['name'] as String? ?? user.email!;
 
             if (role == 'pengelola') {
               return PengelolaHomeScreen(userName: name);
             }
-            return KasirHomeScreen(userName: name);
+            return KasirScreen(userName: name);
           },
         );
       },
