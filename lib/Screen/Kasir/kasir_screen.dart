@@ -24,7 +24,10 @@ class _KasirScreenState extends State<KasirScreen> {
     decimalDigits: 0,
   );
 
+  // _cart menyimpan jumlah pengunjung, bukan jumlah tiket berbayar.
   final Map<String, int> _cart = {};
+  final Map<String, int> _discounts = {};
+
   String _paymentMethod = 'Tunai';
   final _cashReceivedController = TextEditingController();
   bool _isProcessing = false;
@@ -35,14 +38,33 @@ class _KasirScreenState extends State<KasirScreen> {
     super.dispose();
   }
 
-  void _updateQty(String docId, int delta) {
+  void _updateVisitors(String docId, int delta) {
     setState(() {
       final current = _cart[docId] ?? 0;
       final next = current + delta;
+
       if (next <= 0) {
         _cart.remove(docId);
+        _discounts.remove(docId);
       } else {
         _cart[docId] = next;
+        // Potongan tidak boleh melebihi jumlah pengunjung.
+        if ((_discounts[docId] ?? 0) > next) {
+          _discounts[docId] = next;
+        }
+      }
+    });
+  }
+
+  void _updateDiscount(String docId, int delta) {
+    setState(() {
+      final visitors = _cart[docId] ?? 0;
+      final current = _discounts[docId] ?? 0;
+      final next = (current + delta).clamp(0, visitors).toInt();
+      if (next == 0) {
+        _discounts.remove(docId);
+      } else {
+        _discounts[docId] = next;
       }
     });
   }
@@ -57,10 +79,14 @@ class _KasirScreenState extends State<KasirScreen> {
     final items = <Map<String, dynamic>>[];
     int totalAmount = 0;
     int totalQty = 0;
+    int totalVisitors = 0;
+    int totalDiscount = 0;
 
     for (final doc in activeTickets) {
-      final qty = _cart[doc.id] ?? 0;
-      if (qty > 0) {
+      final visitorCount = _cart[doc.id] ?? 0;
+      final discountCount = _discounts[doc.id] ?? 0;
+      final qty = visitorCount - discountCount;
+      if (visitorCount > 0) {
         final data = doc.data();
         final price = (data['price'] as num? ?? 0).toInt();
         final subtotal = price * qty;
@@ -68,15 +94,25 @@ class _KasirScreenState extends State<KasirScreen> {
           'ticketId': doc.id,
           'name': data['name'] as String? ?? '',
           'price': price,
+          'visitorCount': visitorCount,
+          'discountCount': discountCount,
           'qty': qty,
+          'ticketCount': qty,
           'subtotal': subtotal,
         });
         totalAmount += subtotal;
         totalQty += qty;
+        totalVisitors += visitorCount;
+        totalDiscount += discountCount;
       }
     }
 
-    if (items.isEmpty) return;
+    if (items.isEmpty || totalQty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Jumlah tiket berbayar harus lebih dari 0.')),
+      );
+      return;
+    }
 
     final usedPaymentMethod = _paymentMethod;
     int cashReceived = totalAmount;
@@ -100,13 +136,19 @@ class _KasirScreenState extends State<KasirScreen> {
 
     try {
       final now = DateTime.now();
-      final invoiceNumber = 'LW-${DateFormat('yyyyMMdd-HHmmss').format(now)}';
       final user = FirebaseAuth.instance.currentUser;
+      final transactionRef = FirebaseFirestore.instance
+          .collection('transactions')
+          .doc();
+      final invoiceNumber =
+          'LW-${DateFormat('yyyyMMdd-HHmmss').format(now)}-${transactionRef.id.substring(0, 6).toUpperCase()}';
 
-      await FirebaseFirestore.instance.collection('transactions').add({
+      await transactionRef.set({
         'invoiceNumber': invoiceNumber,
         'items': items,
         'totalQty': totalQty,
+        'totalVisitors': totalVisitors,
+        'totalDiscount': totalDiscount,
         'totalAmount': totalAmount,
         'paymentMethod': usedPaymentMethod,
         'cashReceived': cashReceived,
@@ -120,6 +162,7 @@ class _KasirScreenState extends State<KasirScreen> {
 
       setState(() {
         _cart.clear();
+        _discounts.clear();
         _cashReceivedController.clear();
         _paymentMethod = 'Tunai';
       });
@@ -194,7 +237,12 @@ class _KasirScreenState extends State<KasirScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(child: Text('${item['name']} x${item['qty']}')),
+                      Expanded(
+                        child: Text(
+                          '${item['name']} • ${item['qty']} bayar'
+                          '${(item['discountCount'] as num? ?? 0) > 0 ? ' (${item['visitorCount']} pengunjung, ${item['discountCount']} gratis)' : ''}',
+                        ),
+                      ),
                       Text(_currencyFormat.format(item['subtotal'])),
                     ],
                   ),
@@ -315,13 +363,19 @@ class _KasirScreenState extends State<KasirScreen> {
 
         int totalAmount = 0;
         int totalQty = 0;
+        int totalVisitors = 0;
+        int totalDiscount = 0;
         for (final doc in activeTickets) {
-          final qty = _cart[doc.id] ?? 0;
-          if (qty > 0) {
+          final visitors = _cart[doc.id] ?? 0;
+          final discount = _discounts[doc.id] ?? 0;
+          final paidQty = visitors - discount;
+          if (visitors > 0) {
             final data = doc.data();
             final price = (data['price'] as num? ?? 0).toInt();
-            totalAmount += price * qty;
-            totalQty += qty;
+            totalAmount += price * paidQty;
+            totalQty += paidQty;
+            totalVisitors += visitors;
+            totalDiscount += discount;
           }
         }
 
@@ -334,17 +388,19 @@ class _KasirScreenState extends State<KasirScreen> {
                 itemBuilder: (context, index) {
                   final doc = activeTickets[index];
                   final data = doc.data();
-                  final qty = _cart[doc.id] ?? 0;
+                  final visitors = _cart[doc.id] ?? 0;
+                  final discount = _discounts[doc.id] ?? 0;
+                  final paidQty = visitors - discount;
 
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                       side: BorderSide(
-                        color: qty > 0
+                        color: visitors > 0
                             ? const Color(0xFF1B5E20)
                             : Colors.grey.shade300,
-                        width: qty > 0 ? 1.5 : 1,
+                        width: visitors > 0 ? 1.5 : 1,
                       ),
                     ),
                     child: Padding(
@@ -376,31 +432,66 @@ class _KasirScreenState extends State<KasirScreen> {
                               ],
                             ),
                           ),
-                          Row(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              IconButton.outlined(
-                                onPressed: qty > 0
-                                    ? () => _updateQty(doc.id, -1)
-                                    : null,
-                                icon: const Icon(Icons.remove, size: 18),
-                              ),
-                              SizedBox(
-                                width: 36,
-                                child: Text(
-                                  '$qty',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                              const Text('Pengunjung', style: TextStyle(fontSize: 11)),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton.outlined(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: visitors > 0
+                                        ? () => _updateVisitors(doc.id, -1)
+                                        : null,
+                                    icon: const Icon(Icons.remove, size: 18),
                                   ),
-                                ),
+                                  SizedBox(
+                                    width: 28,
+                                    child: Text(
+                                      '$visitors',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  IconButton.filled(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => _updateVisitors(doc.id, 1),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1B5E20),
+                                    ),
+                                    icon: const Icon(Icons.add, size: 18),
+                                  ),
+                                ],
                               ),
-                              IconButton.filled(
-                                onPressed: () => _updateQty(doc.id, 1),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1B5E20),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('Gratis', style: TextStyle(fontSize: 11)),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: discount > 0
+                                        ? () => _updateDiscount(doc.id, -1)
+                                        : null,
+                                    icon: const Icon(Icons.remove_circle_outline, size: 18),
+                                  ),
+                                  Text('$discount', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: discount < visitors
+                                        ? () => _updateDiscount(doc.id, 1)
+                                        : null,
+                                    icon: const Icon(Icons.add_circle_outline, size: 18),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                '$paidQty tiket dibayar',
+                                style: const TextStyle(
+                                  color: Color(0xFF1B5E20),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                icon: const Icon(Icons.add, size: 18),
                               ),
                             ],
                           ),
@@ -411,7 +502,7 @@ class _KasirScreenState extends State<KasirScreen> {
                 },
               ),
             ),
-            if (totalQty > 0)
+            if (totalVisitors > 0)
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -515,11 +606,15 @@ class _KasirScreenState extends State<KasirScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Total ($totalQty Tiket)',
+                              'Total ($totalQty Tiket dibayar)',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.black54,
                               ),
+                            ),
+                            Text(
+                              '$totalVisitors pengunjung • $totalDiscount gratis',
+                              style: const TextStyle(fontSize: 11, color: Colors.black54),
                             ),
                             Text(
                               _currencyFormat.format(totalAmount),
@@ -532,7 +627,7 @@ class _KasirScreenState extends State<KasirScreen> {
                           ],
                         ),
                         FilledButton.icon(
-                          onPressed: _isProcessing
+                          onPressed: (_isProcessing || totalQty <= 0)
                               ? null
                               : () => _processCheckout(activeTickets),
                           style: FilledButton.styleFrom(
