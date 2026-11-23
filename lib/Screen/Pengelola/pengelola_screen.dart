@@ -12,14 +12,30 @@ class PengelolaHomeScreen extends StatefulWidget {
 }
 
 class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
-  final _currencyFormat =
-      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp', decimalDigits: 0);
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _transactionsStream =
+      FirebaseFirestore.instance
+          .collection('transactions')
+          .orderBy('createdAt', descending: true)
+          .snapshots();
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _ticketTypesStream =
+      FirebaseFirestore.instance
+          .collection('ticket_types')
+          .orderBy('name')
+          .snapshots();
 
-  void _showTicketDialog({DocumentSnapshot? doc}) {
-    final data = doc?.data() as Map<String, dynamic>?;
+  final _currencyFormat = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp',
+    decimalDigits: 0,
+  );
+  String _selectedPeriod = 'Hari Ini';
+
+  void _showTicketDialog({DocumentSnapshot<Map<String, dynamic>>? doc}) {
+    final data = doc?.data();
     final nameController = TextEditingController(text: data?['name'] ?? '');
-    final priceController =
-        TextEditingController(text: data != null ? '${data['price']}' : '');
+    final priceController = TextEditingController(
+      text: data != null ? '${data['price']}' : '',
+    );
     bool isActive = data?['isActive'] ?? true;
 
     showDialog(
@@ -66,8 +82,9 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                 final price = int.tryParse(priceController.text.trim()) ?? 0;
                 if (name.isEmpty || price <= 0) return;
 
-                final collection =
-                    FirebaseFirestore.instance.collection('ticket_types');
+                final collection = FirebaseFirestore.instance.collection(
+                  'ticket_types',
+                );
                 if (doc == null) {
                   await collection.add({
                     'name': name,
@@ -114,56 +131,89 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
             indicatorColor: Colors.amber,
             tabs: [
               Tab(icon: Icon(Icons.analytics_outlined), text: 'Laporan'),
-              Tab(icon: Icon(Icons.confirmation_number_outlined), text: 'Harga Tiket'),
+              Tab(
+                icon: Icon(Icons.confirmation_number_outlined),
+                text: 'Harga Tiket',
+              ),
             ],
           ),
         ),
         body: TabBarView(
-          children: [
-            _buildReportTab(),
-            _buildTicketManagementTab(),
-          ],
+          children: [_buildReportTab(), _buildTicketManagementTab()],
         ),
       ),
     );
   }
 
   Widget _buildReportTab() {
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day);
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('transactions')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _transactionsStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final docs = snapshot.data?.docs ?? [];
-        int todayRevenue = 0;
-        int todayTickets = 0;
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Gagal memuat laporan transaksi: ${snapshot.error}'),
+          );
+        }
 
-        for (final doc in docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          final ts = data['createdAt'] as Timestamp?;
-          if (ts != null && ts.toDate().isAfter(startOfDay)) {
-            todayRevenue += (data['totalAmount'] as num? ?? 0).toInt();
-            todayTickets += (data['totalQty'] as num? ?? 0).toInt();
+        final docs = snapshot.data?.docs ?? [];
+        final now = DateTime.now();
+        final periodStart = switch (_selectedPeriod) {
+          'Hari Ini' => DateTime(now.year, now.month, now.day),
+          'Bulan Ini' => DateTime(now.year, now.month),
+          _ => null,
+        };
+        final filteredDocs = periodStart == null
+            ? docs
+            : docs.where((doc) {
+                final createdAt = doc.data()['createdAt'] as Timestamp?;
+                return createdAt != null &&
+                    !createdAt.toDate().isBefore(periodStart);
+              }).toList();
+
+        var totalRevenue = 0;
+        var totalTickets = 0;
+        var cashRevenue = 0;
+        var qrisRevenue = 0;
+        for (final doc in filteredDocs) {
+          final data = doc.data();
+          final amount = (data['totalAmount'] as num? ?? 0).toInt();
+          totalRevenue += amount;
+          totalTickets += (data['totalQty'] as num? ?? 0).toInt();
+          if (data['paymentMethod'] == 'Tunai') {
+            cashRevenue += amount;
+          } else if (data['paymentMethod'] == 'QRIS') {
+            qrisRevenue += amount;
           }
         }
 
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            Wrap(
+              spacing: 8,
+              children: ['Hari Ini', 'Bulan Ini', 'Semua']
+                  .map(
+                    (period) => ChoiceChip(
+                      label: Text(period),
+                      selected: _selectedPeriod == period,
+                      onSelected: (_) =>
+                          setState(() => _selectedPeriod = period),
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: _summaryCard(
-                    'Pendapatan Hari Ini',
-                    _currencyFormat.format(todayRevenue),
+                    'Total Pendapatan',
+                    _currencyFormat.format(totalRevenue),
                     Icons.payments_outlined,
                     Colors.green.shade700,
                   ),
@@ -171,21 +221,43 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _summaryCard(
-                    'Tiket Terjual Hari Ini',
-                    '$todayTickets Lembar',
+                    'Tiket Terjual',
+                    '$totalTickets Lembar',
                     Icons.local_activity_outlined,
                     Colors.blue.shade800,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _summaryCard(
+                    'Pendapatan Tunai',
+                    _currencyFormat.format(cashRevenue),
+                    Icons.money_outlined,
+                    Colors.teal.shade700,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _summaryCard(
+                    'Pendapatan QRIS',
+                    _currencyFormat.format(qrisRevenue),
+                    Icons.qr_code_2,
+                    Colors.deepPurple.shade700,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
             const Text(
-              'Riwayat Transaksi Terbaru',
+              'Riwayat Transaksi',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            if (docs.isEmpty)
+            if (filteredDocs.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: Center(
@@ -193,8 +265,8 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                 ),
               )
             else
-              ...docs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
+              ...filteredDocs.map((doc) {
+                final data = doc.data();
                 final ts = data['createdAt'] as Timestamp?;
                 final timeStr = ts != null
                     ? DateFormat('dd MMM yyyy, HH:mm').format(ts.toDate())
@@ -204,7 +276,10 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                   child: ListTile(
                     leading: CircleAvatar(
                       backgroundColor: Colors.blue.shade50,
-                      child: const Icon(Icons.receipt_long, color: Color(0xFF0D47A1)),
+                      child: const Icon(
+                        Icons.receipt_long,
+                        color: Color(0xFF0D47A1),
+                      ),
                     ),
                     title: Text(
                       data['invoiceNumber'] ?? doc.id,
@@ -221,12 +296,101 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                         color: Color(0xFF1B5E20),
                       ),
                     ),
+                    onTap: () => _showTransactionDetails(data, doc.id),
                   ),
                 );
               }),
           ],
         );
       },
+    );
+  }
+
+  void _showTransactionDetails(Map<String, dynamic> data, String docId) {
+    final timestamp = data['createdAt'] as Timestamp?;
+    final transactionTime = timestamp?.toDate();
+    final invoiceNumber = data['invoiceNumber'] as String? ?? docId;
+    final cashierName = data['cashierName'] as String? ?? '-';
+    final paymentMethod = data['paymentMethod'] as String? ?? '-';
+    final items = (data['items'] as List<dynamic>? ?? [])
+        .map((item) => Map<String, dynamic>.from(item as Map<String, dynamic>))
+        .toList();
+    final totalAmount = (data['totalAmount'] as num? ?? 0).toInt();
+    final cashReceived = (data['cashReceived'] as num? ?? 0).toInt();
+    final changeAmount = (data['changeAmount'] as num? ?? 0).toInt();
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Detail Transaksi'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailRow('Invoice', invoiceNumber),
+              _detailRow(
+                'Waktu',
+                transactionTime == null
+                    ? '-'
+                    : DateFormat('dd MMM yyyy, HH:mm').format(transactionTime),
+              ),
+              _detailRow('Kasir', cashierName),
+              _detailRow('Metode Pembayaran', paymentMethod),
+              const Divider(),
+              ...items.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${item['name'] ?? ''} x${item['qty'] ?? 0}',
+                        ),
+                      ),
+                      Text(
+                        _currencyFormat.format(
+                          (item['subtotal'] as num? ?? 0).toInt(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(),
+              _detailRow('Total', _currencyFormat.format(totalAmount)),
+              if (paymentMethod == 'Tunai') ...[
+                _detailRow(
+                  'Uang Diterima',
+                  _currencyFormat.format(cashReceived),
+                ),
+                _detailRow('Kembalian', _currencyFormat.format(changeAmount)),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          const SizedBox(width: 12),
+          Flexible(child: Text(value, textAlign: TextAlign.end)),
+        ],
+      ),
     );
   }
 
@@ -240,7 +404,10 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
             const SizedBox(height: 4),
             Text(
               value,
@@ -265,14 +432,18 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Tambah Tiket'),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('ticket_types')
-            .orderBy('name')
-            .snapshots(),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _ticketTypesStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Gagal memuat kategori tiket: ${snapshot.error}'),
+            );
           }
 
           final docs = snapshot.data?.docs ?? [];
@@ -287,7 +458,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final doc = docs[index];
-              final data = doc.data() as Map<String, dynamic>;
+              final data = doc.data();
               final isActive = data['isActive'] ?? true;
 
               return Card(
