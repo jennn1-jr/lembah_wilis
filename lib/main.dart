@@ -4,14 +4,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'Screen/Auth/login_screen.dart';
+import 'Screen/Loket/loket_screen.dart';
 import 'Screen/Kasir/kasir_screen.dart';
 import 'Screen/Pengelola/pengelola_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(const LembahWilisApp());
 }
 
@@ -21,11 +24,14 @@ class LembahWilisApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lembah Wilis',
+      title: 'Wisata Lembah Wilis',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E20)),
         useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.green,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF7F9F7),
       ),
       home: const AuthWrapper(),
     );
@@ -41,55 +47,137 @@ class AuthWrapper extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const LoadingScreen();
         }
 
         final user = authSnapshot.data;
+
         if (user == null || user.email == null) {
           return const LoginScreen();
         }
 
-        return FutureBuilder<DocumentSnapshot>(
+        final email = user.email!.toLowerCase();
+
+        return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           future: FirebaseFirestore.instance
               .collection('users')
-              .doc(user.email!.toLowerCase())
+              .doc(email)
               .get(),
-          builder: (context, roleSnapshot) {
-            if (roleSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const LoadingScreen();
+            }
+
+            if (userSnapshot.hasError) {
+              return AccessErrorScreen(
+                message:
+                    'Gagal mengambil data akun. Periksa koneksi '
+                    'internet dan izin Firestore.',
               );
             }
 
-            if (!roleSnapshot.hasData || !roleSnapshot.data!.exists) {
-              return Scaffold(
-                body: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('Data peran untuk ${user.email} tidak ditemukan.'),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: () => FirebaseAuth.instance.signOut(),
-                        child: const Text('Kembali ke Login'),
-                      ),
-                    ],
-                  ),
-                ),
+            if (!userSnapshot.hasData ||
+                !userSnapshot.data!.exists) {
+              return const AccessErrorScreen(
+                message:
+                    'Data akun tidak ditemukan di Firestore. '
+                    'Hubungi Pengelola.',
               );
             }
 
-            final data = roleSnapshot.data!.data() as Map<String, dynamic>;
-            final role = data['role'] as String? ?? 'kasir';
-            final name = data['name'] as String? ?? user.email!;
+            final userData = userSnapshot.data!.data()!;
 
-            if (role == 'pengelola') {
-              return PengelolaHomeScreen(userName: name);
+            final role = userData['role'] as String? ?? '';
+            final name = userData['name'] as String? ?? email;
+
+            switch (role) {
+              case 'loket':
+                return LoketScreen(userName: name);
+
+              case 'kasir':
+                return KasirScreen(userName: name);
+
+              case 'pengelola':
+                return PengelolaHomeScreen(userName: name);
+
+              default:
+                return const AccessErrorScreen(
+                  message:
+                      'Role akun tidak dikenali. '
+                      'Hubungi Pengelola untuk memperbaiki '
+                      'hak akses akun.',
+                );
             }
-            return KasirScreen(userName: name);
           },
         );
       },
+    );
+  }
+}
+
+class LoadingScreen extends StatelessWidget {
+  const LoadingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+}
+
+class AccessErrorScreen extends StatelessWidget {
+  final String message;
+
+  const AccessErrorScreen({
+    super.key,
+    required this.message,
+  });
+
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.lock_outline,
+                size: 64,
+                color: Colors.red,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Akses Tidak Tersedia',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _logout,
+                icon: const Icon(Icons.logout),
+                label: const Text('Keluar'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
