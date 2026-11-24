@@ -306,79 +306,177 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
     );
   }
 
-  void _showTransactionDetails(Map<String, dynamic> data, String docId) {
-    final timestamp = data['createdAt'] as Timestamp?;
-    final transactionTime = timestamp?.toDate();
-    final invoiceNumber = data['invoiceNumber'] as String? ?? docId;
-    final cashierName = data['cashierName'] as String? ?? '-';
-    final paymentMethod = data['paymentMethod'] as String? ?? '-';
-    final items = (data['items'] as List<dynamic>? ?? [])
-        .map((item) => Map<String, dynamic>.from(item as Map<String, dynamic>))
-        .toList();
-    final totalAmount = (data['totalAmount'] as num? ?? 0).toInt();
-    final cashReceived = (data['cashReceived'] as num? ?? 0).toInt();
-    final changeAmount = (data['changeAmount'] as num? ?? 0).toInt();
+  
+void _showTransactionDetails(Map<String, dynamic> data, String docId) {
+  final timestamp = data['createdAt'] as Timestamp?;
+  final transactionTime = timestamp?.toDate();
+  final invoiceNumber = data['invoiceNumber'] as String? ?? docId;
+  final cashierName = data['cashierName'] as String? ?? '-';
+  final paymentMethod = data['paymentMethod'] as String? ?? '-';
 
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Detail Transaksi'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _detailRow('Invoice', invoiceNumber),
-              _detailRow(
-                'Waktu',
-                transactionTime == null
-                    ? '-'
-                    : DateFormat('dd MMM yyyy, HH:mm').format(transactionTime),
-              ),
-              _detailRow('Kasir', cashierName),
-              _detailRow('Metode Pembayaran', paymentMethod),
-              const Divider(),
-              ...items.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${item['name'] ?? ''} x${item['qty'] ?? 0}',
-                        ),
-                      ),
-                      Text(
-                        _currencyFormat.format(
-                          (item['subtotal'] as num? ?? 0).toInt(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const Divider(),
-              _detailRow('Total', _currencyFormat.format(totalAmount)),
-              if (paymentMethod == 'Tunai') ...[
-                _detailRow(
-                  'Uang Diterima',
-                  _currencyFormat.format(cashReceived),
-                ),
-                _detailRow('Kembalian', _currencyFormat.format(changeAmount)),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup'),
-          ),
+  final items = (data['items'] as List<dynamic>? ?? [])
+      .map((item) => Map<String, dynamic>.from(item as Map))
+      .toList();
+
+  final totalAmount = (data['totalAmount'] as num? ?? 0).toInt();
+  final cashReceived = (data['cashReceived'] as num? ?? 0).toInt();
+  final changeAmount = (data['changeAmount'] as num? ?? 0).toInt();
+
+  // Mengambil nomor seri dari data transaksi.
+  String getSerial(Map<String, dynamic> item, String field, String numberField) {
+    final serial = item[field];
+
+    if (serial != null && serial.toString().isNotEmpty) {
+      return serial.toString();
+    }
+
+    final number = item[numberField];
+    if (number is num) {
+      return number.toInt().toString().padLeft(4, '0');
+    }
+
+    return '';
+  }
+
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.receipt_long, color: Color(0xFF0D47A1)),
+          SizedBox(width: 8),
+          Text('Detail Transaksi'),
         ],
       ),
-    );
-  }
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailRow('Invoice', invoiceNumber),
+            _detailRow(
+              'Waktu',
+              transactionTime == null
+                  ? '-'
+                  : DateFormat('dd MMM yyyy, HH:mm')
+                      .format(transactionTime),
+            ),
+            _detailRow('Kasir', cashierName),
+            _detailRow('Metode Pembayaran', paymentMethod),
+
+            const Divider(height: 24),
+
+            const Text(
+              'Rincian Tiket',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            ...items.map((item) {
+              final name = item['name']?.toString() ?? '-';
+              final visitorCount =
+                  (item['visitorCount'] as num? ?? 0).toInt();
+              final discountCount =
+                  (item['discountCount'] as num? ?? 0).toInt();
+              final qty = (item['qty'] as num? ?? 0).toInt();
+              final subtotal =
+                  (item['subtotal'] as num? ?? 0).toInt();
+
+              final serialStart = getSerial(
+                item,
+                'serialStart',
+                'serialStartNumber',
+              );
+
+              final serialEnd = getSerial(
+                item,
+                'serialEnd',
+                'serialEndNumber',
+              );
+
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.blue.shade100),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    _detailRow('Jumlah Pengunjung', '$visitorCount orang'),
+                    _detailRow('Tiket Gratis/Potongan', '$discountCount'),
+                    _detailRow('Tiket Dibayar', '$qty lembar'),
+
+                    const Divider(),
+
+                    if (qty > 0 && serialStart.isNotEmpty && serialEnd.isNotEmpty)
+                      _detailRow(
+                        'Nomor Seri',
+                        serialStart == serialEnd
+                            ? serialStart
+                            : '$serialStart - $serialEnd',
+                      )
+                    else if (qty == 0)
+                      _detailRow('Nomor Seri', 'Tidak ada tiket berbayar')
+                    else
+                      _detailRow('Nomor Seri', 'Tidak tersedia'),
+
+                    const SizedBox(height: 4),
+
+                    _detailRow(
+                      'Subtotal',
+                      _currencyFormat.format(subtotal),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+            const Divider(height: 24),
+
+            _detailRow(
+              'Total Pembayaran',
+              _currencyFormat.format(totalAmount),
+            ),
+
+            if (paymentMethod == 'Tunai') ...[
+              _detailRow(
+                'Uang Diterima',
+                _currencyFormat.format(cashReceived),
+              ),
+              _detailRow(
+                'Kembalian',
+                _currencyFormat.format(changeAmount),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Tutup'),
+        ),
+      ],
+    ),
+  );
+}
+
 
   Widget _detailRow(String label, String value) {
     return Padding(
