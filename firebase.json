@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"lembah-wilis","appId":"1:53068860896:android:9a712d040f210afec16f85","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"lembah-wilis","configurations":{"android":"1:53068860896:android:9a712d040f210afec16f85","web":"1:53068860896:web:4f2cb393a5b62109c16f85"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "lembah-wilis",
+          "appId": "1:53068860896:android:9a712d040f210afec16f85",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "lembah-wilis",
+          "configurations": {
+            "android": "1:53068860896:android:9a712d040f210afec16f85",
+            "web": "1:53068860896:web:4f2cb393a5b62109c16f85"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "indexes": "firestore.indexes.json"
+  }
+}

@@ -7,9 +7,12 @@ import 'Screen/Auth/login_screen.dart';
 import 'Screen/Loket/loket_screen.dart';
 import 'Screen/Kasir/kasir_screen.dart';
 import 'Screen/Pengelola/pengelola_screen.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await initializeDateFormatting('id_ID', null);
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,

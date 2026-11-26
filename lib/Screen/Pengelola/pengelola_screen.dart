@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 class PengelolaHomeScreen extends StatefulWidget {
   final String userName;
+
   const PengelolaHomeScreen({super.key, required this.userName});
 
   @override
@@ -12,142 +13,152 @@ class PengelolaHomeScreen extends StatefulWidget {
 }
 
 class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _transactionsStream =
-      FirebaseFirestore.instance
-          .collection('transactions')
-          .orderBy('createdAt', descending: true)
-          .snapshots();
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _ticketTypesStream =
-      FirebaseFirestore.instance
-          .collection('ticket_types')
-          .orderBy('name')
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _reportsStream =
+      _firestore
+          .collection('daily_reports')
+          .where('status', isEqualTo: 'verified')
+          .orderBy('operationalDate', descending: true)
           .snapshots();
 
-  final _currencyFormat = NumberFormat.currency(
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _ticketTypesStream =
+      _firestore.collection('ticket_types').orderBy('name').snapshots();
+
+  final NumberFormat _currencyFormat = NumberFormat.currency(
     locale: 'id_ID',
     symbol: 'Rp',
     decimalDigits: 0,
   );
+
   String _selectedPeriod = 'Hari Ini';
 
-  void _showTicketDialog({DocumentSnapshot<Map<String, dynamic>>? doc}) {
-    final data = doc?.data();
-    final nameController = TextEditingController(text: data?['name'] ?? '');
-    final priceController = TextEditingController(
-      text: data != null ? '${data['price']}' : '',
-    );
-    bool isActive = data?['isActive'] ?? true;
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
 
-    showDialog(
+  static const Color primaryColor = Color(0xFF1B5E20);
+
+  // =========================================
+  // HELPER
+  // =========================================
+
+  DateTime? _parseOperationalDate(String? value) {
+    if (value == null || value.isEmpty) return null;
+
+    try {
+      return DateTime.parse(value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic> _getReportData(Map<String, dynamic> report) {
+    final verified = report['verifiedData'];
+
+    if (verified is Map) {
+      return Map<String, dynamic>.from(verified);
+    }
+
+    return Map<String, dynamic>.from(report['submittedData'] as Map? ?? {});
+  }
+
+  int _number(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  bool _isInSelectedPeriod(String? dateString) {
+    final date = _parseOperationalDate(dateString);
+    if (date == null) return false;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (_selectedPeriod) {
+      case 'Hari Ini':
+        return date.year == today.year &&
+            date.month == today.month &&
+            date.day == today.day;
+
+      case 'Minggu Ini':
+        final start = today.subtract(Duration(days: today.weekday - 1));
+        return !date.isBefore(start) && !date.isAfter(today);
+
+      case 'Bulan Ini':
+        return date.year == now.year && date.month == now.month;
+
+      case 'Tahun Ini':
+        return date.year == now.year;
+
+      case 'Semua':
+        return true;
+
+      case 'Rentang Tanggal':
+        if (_customStartDate == null || _customEndDate == null) {
+          return true;
+        }
+
+        final start = DateTime(
+          _customStartDate!.year,
+          _customStartDate!.month,
+          _customStartDate!.day,
+        );
+
+        final end = DateTime(
+          _customEndDate!.year,
+          _customEndDate!.month,
+          _customEndDate!.day,
+          23,
+          59,
+          59,
+        );
+
+        return !date.isBefore(start) && !date.isAfter(end);
+
+      default:
+        return true;
+    }
+  }
+
+  String _formatDate(String? value) {
+    final date = _parseOperationalDate(value);
+    if (date == null) return '-';
+
+    return DateFormat('dd MMMM yyyy', 'id_ID').format(date);
+  }
+
+  // =========================================
+  // FILTER TANGGAL
+  // =========================================
+
+  Future<void> _selectCustomDateRange() async {
+    final now = DateTime.now();
+
+    final result = await showDateRangePicker(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(doc == null ? 'Tambah Kategori Tiket' : 'Edit Tiket'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Tiket (misal: Tiket Masuk)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Harga (Rp)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Status Aktif'),
-                value: isActive,
-                onChanged: (val) => setDialogState(() => isActive = val),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final price = int.tryParse(priceController.text.trim()) ?? 0;
-                if (name.isEmpty || price <= 0) return;
-
-                final collection = FirebaseFirestore.instance.collection(
-                  'ticket_types',
-                );
-                if (doc == null) {
-                  await collection.add({
-                    'name': name,
-                    'price': price,
-                    'isActive': isActive,
-                    'createdAt': FieldValue.serverTimestamp(),
-                  });
-                } else {
-                  await collection.doc(doc.id).update({
-                    'name': name,
-                    'price': price,
-                    'isActive': isActive,
-                  });
-                }
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Simpan'),
-            ),
-          ],
-        ),
-      ),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 1),
+      initialDateRange: _customStartDate != null && _customEndDate != null
+          ? DateTimeRange(start: _customStartDate!, end: _customEndDate!)
+          : null,
     );
+
+    if (result == null || !mounted) return;
+
+    setState(() {
+      _selectedPeriod = 'Rentang Tanggal';
+      _customStartDate = result.start;
+      _customEndDate = result.end;
+    });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text('Pengelola • ${widget.userName}'),
-          backgroundColor: const Color(0xFF0D47A1),
-          foregroundColor: Colors.white,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Keluar',
-              onPressed: () => FirebaseAuth.instance.signOut(),
-            ),
-          ],
-          bottom: const TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.amber,
-            tabs: [
-              Tab(icon: Icon(Icons.analytics_outlined), text: 'Laporan'),
-              Tab(
-                icon: Icon(Icons.confirmation_number_outlined),
-                text: 'Harga Tiket',
-              ),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [_buildReportTab(), _buildTicketManagementTab()],
-        ),
-      ),
-    );
-  }
+  // =========================================
+  // DASHBOARD LAPORAN
+  // =========================================
 
   Widget _buildReportTab() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _transactionsStream,
+      stream: _reportsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
@@ -156,94 +167,153 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
 
         if (snapshot.hasError) {
           return Center(
-            child: Text('Gagal memuat laporan transaksi: ${snapshot.error}'),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 45),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Gagal memuat laporan harian.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('${snapshot.error}', textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => setState(() {}),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
-        final docs = snapshot.data?.docs ?? [];
-        final now = DateTime.now();
-        final periodStart = switch (_selectedPeriod) {
-          'Hari Ini' => DateTime(now.year, now.month, now.day),
-          'Bulan Ini' => DateTime(now.year, now.month),
-          _ => null,
-        };
-        final filteredDocs = periodStart == null
-            ? docs
-            : docs.where((doc) {
-                final createdAt = doc.data()['createdAt'] as Timestamp?;
-                return createdAt != null &&
-                    !createdAt.toDate().isBefore(periodStart);
-              }).toList();
+        final allDocs = snapshot.data?.docs ?? [];
 
-        var totalRevenue = 0;
-        var totalTickets = 0;
-        var cashRevenue = 0;
-        var qrisRevenue = 0;
-        for (final doc in filteredDocs) {
+        final reports = allDocs.where((doc) {
           final data = doc.data();
-          final amount = (data['totalAmount'] as num? ?? 0).toInt();
-          totalRevenue += amount;
-          totalTickets += (data['totalQty'] as num? ?? 0).toInt();
-          if (data['paymentMethod'] == 'Tunai') {
-            cashRevenue += amount;
-          } else if (data['paymentMethod'] == 'QRIS') {
-            qrisRevenue += amount;
+
+          return _isInSelectedPeriod(data['operationalDate']?.toString());
+        }).toList();
+
+        int totalRevenue = 0;
+        int totalVisitors = 0;
+        int cashRevenue = 0;
+        int qrisRevenue = 0;
+        int totalPaidTickets = 0;
+        int totalFreeTickets = 0;
+
+        for (final doc in reports) {
+          final data = _getReportData(doc.data());
+
+          totalRevenue += _number(data['totalRevenue']);
+          totalVisitors += _number(data['totalVisitors']);
+          cashRevenue += _number(data['cashRevenue']);
+          qrisRevenue += _number(data['qrisRevenue']);
+
+          final rawSummary = data['ticketSummary'] as Map? ?? {};
+
+          for (final entry in rawSummary.values) {
+            if (entry is! Map) continue;
+
+            totalPaidTickets += _number(entry['paidCount']);
+            totalFreeTickets += _number(entry['freeCount']);
           }
         }
 
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Wrap(
-              spacing: 8,
-              children: ['Hari Ini', 'Bulan Ini', 'Semua']
-                  .map(
-                    (period) => ChoiceChip(
-                      label: Text(period),
-                      selected: _selectedPeriod == period,
-                      onSelected: (_) =>
-                          setState(() => _selectedPeriod = period),
-                    ),
-                  )
-                  .toList(),
+            _buildWelcomeCard(),
+
+            const SizedBox(height: 18),
+
+            const Text(
+              'Periode Laporan',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _summaryCard(
-                    'Total Pendapatan',
-                    _currencyFormat.format(totalRevenue),
-                    Icons.payments_outlined,
-                    Colors.green.shade700,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _summaryCard(
-                    'Tiket Terjual',
-                    '$totalTickets Lembar',
-                    Icons.local_activity_outlined,
-                    Colors.blue.shade800,
-                  ),
-                ),
-              ],
+
+            const SizedBox(height: 10),
+
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children:
+                    [
+                      'Hari Ini',
+                      'Minggu Ini',
+                      'Bulan Ini',
+                      'Tahun Ini',
+                      'Semua',
+                    ].map((period) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(period),
+                          selected: _selectedPeriod == period,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedPeriod = period;
+                            });
+                          },
+                        ),
+                      );
+                    }).toList(),
+              ),
             ),
+
             const SizedBox(height: 8),
+
+            OutlinedButton.icon(
+              onPressed: _selectCustomDateRange,
+              icon: const Icon(Icons.date_range),
+              label: Text(
+                _selectedPeriod == 'Rentang Tanggal' &&
+                        _customStartDate != null &&
+                        _customEndDate != null
+                    ? '${DateFormat('dd/MM/yyyy').format(_customStartDate!)}'
+                          ' - '
+                          '${DateFormat('dd/MM/yyyy').format(_customEndDate!)}'
+                    : 'Pilih Rentang Tanggal',
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            const Text(
+              'Ringkasan Keuangan',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 10),
+
+            _buildSummaryCard(
+              'Total Pendapatan',
+              _currencyFormat.format(totalRevenue),
+              Icons.account_balance_wallet_outlined,
+              Colors.green.shade700,
+            ),
+
+            const SizedBox(height: 10),
+
             Row(
               children: [
                 Expanded(
-                  child: _summaryCard(
+                  child: _buildSummaryCard(
                     'Pendapatan Tunai',
                     _currencyFormat.format(cashRevenue),
-                    Icons.money_outlined,
+                    Icons.payments_outlined,
                     Colors.teal.shade700,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: _summaryCard(
-                    'Pendapatan QRIS',
+                  child: _buildSummaryCard(
+                    'QRIS / Transfer',
                     _currencyFormat.format(qrisRevenue),
                     Icons.qr_code_2,
                     Colors.deepPurple.shade700,
@@ -251,52 +321,136 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 18),
+
             const Text(
-              'Riwayat Transaksi',
+              'Ringkasan Pengunjung',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            if (filteredDocs.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(
-                  child: Text('Belum ada transaksi penjualan tiket.'),
+
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Total Pengunjung',
+                    '$totalVisitors Orang',
+                    Icons.groups_outlined,
+                    Colors.blue.shade800,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Tiket Berbayar',
+                    '$totalPaidTickets Lembar',
+                    Icons.confirmation_number_outlined,
+                    Colors.indigo.shade700,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            _buildSummaryCard(
+              'Tiket Gratis',
+              '$totalFreeTickets Lembar',
+              Icons.card_giftcard,
+              Colors.orange.shade800,
+            ),
+
+            const SizedBox(height: 20),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Laporan Terverifikasi',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Text(
+                  '${reports.length} Laporan',
+                  style: const TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            if (reports.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(28),
+                  child: Column(
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 45, color: Colors.grey),
+                      SizedBox(height: 10),
+                      Text(
+                        'Belum ada laporan terverifikasi '
+                        'pada periode ini.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               )
             else
-              ...filteredDocs.map((doc) {
+              ...reports.map((doc) {
                 final data = doc.data();
-                final ts = data['createdAt'] as Timestamp?;
-                final timeStr = ts != null
-                    ? DateFormat('dd MMM yyyy, HH:mm').format(ts.toDate())
-                    : '-';
+                final reportData = _getReportData(data);
+
+                final revenue = _number(reportData['totalRevenue']);
+
+                final visitors = _number(reportData['totalVisitors']);
+
                 return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.blue.shade50,
-                      child: const Icon(
-                        Icons.receipt_long,
-                        color: Color(0xFF0D47A1),
-                      ),
+                    contentPadding: const EdgeInsets.all(12),
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0xFFE8F5E9),
+                      child: Icon(Icons.verified_outlined, color: primaryColor),
                     ),
                     title: Text(
-                      data['invoiceNumber'] ?? doc.id,
+                      _formatDate(data['operationalDate']?.toString()),
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(
-                      '${data['cashierName']} • ${data['paymentMethod']} • $timeStr',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    trailing: Text(
-                      _currencyFormat.format(data['totalAmount'] ?? 0),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1B5E20),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Text(
+                        'Loket: ${data['loketName'] ?? '-'}\n'
+                        'Kasir: ${data['cashierName'] ?? '-'}\n'
+                        '$visitors pengunjung',
                       ),
                     ),
-                    onTap: () => _showTransactionDetails(data, doc.id),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _currencyFormat.format(revenue),
+                          style: const TextStyle(
+                            color: primaryColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        const Text(
+                          'Terverifikasi',
+                          style: TextStyle(fontSize: 10, color: Colors.green),
+                        ),
+                      ],
+                    ),
+                    onTap: () => _showReportDetail(doc.id, data),
                   ),
                 );
               }),
@@ -306,226 +460,621 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
     );
   }
 
-  
-void _showTransactionDetails(Map<String, dynamic> data, String docId) {
-  final timestamp = data['createdAt'] as Timestamp?;
-  final transactionTime = timestamp?.toDate();
-  final invoiceNumber = data['invoiceNumber'] as String? ?? docId;
-  final cashierName = data['cashierName'] as String? ?? '-';
-  final paymentMethod = data['paymentMethod'] as String? ?? '-';
+  // =========================================
+  // KARTU DASHBOARD
+  // =========================================
 
-  final items = (data['items'] as List<dynamic>? ?? [])
-      .map((item) => Map<String, dynamic>.from(item as Map))
-      .toList();
-
-  final totalAmount = (data['totalAmount'] as num? ?? 0).toInt();
-  final cashReceived = (data['cashReceived'] as num? ?? 0).toInt();
-  final changeAmount = (data['changeAmount'] as num? ?? 0).toInt();
-
-  // Mengambil nomor seri dari data transaksi.
-  String getSerial(Map<String, dynamic> item, String field, String numberField) {
-    final serial = item[field];
-
-    if (serial != null && serial.toString().isNotEmpty) {
-      return serial.toString();
-    }
-
-    final number = item[numberField];
-    if (number is num) {
-      return number.toInt().toString().padLeft(4, '0');
-    }
-
-    return '';
-  }
-
-  showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Row(
+  Widget _buildWelcomeCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: primaryColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.receipt_long, color: Color(0xFF0D47A1)),
-          SizedBox(width: 8),
-          Text('Detail Transaksi'),
+          const Text(
+            'Dashboard Manajemen',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Selamat Datang, ${widget.userName}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 19,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Pantau laporan operasional dan pendapatan '
+            'Wisata Lembah Wilis.',
+            style: TextStyle(color: Colors.white, fontSize: 12),
+          ),
         ],
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _buildSummaryCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
           children: [
-            _detailRow('Invoice', invoiceNumber),
-            _detailRow(
-              'Waktu',
-              transactionTime == null
-                  ? '-'
-                  : DateFormat('dd MMM yyyy, HH:mm')
-                      .format(transactionTime),
-            ),
-            _detailRow('Kasir', cashierName),
-            _detailRow('Metode Pembayaran', paymentMethod),
-
-            const Divider(height: 24),
-
-            const Text(
-              'Rincian Tiket',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
+            Icon(icon, color: color, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(color: Colors.black54, fontSize: 11),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 
-            ...items.map((item) {
-              final name = item['name']?.toString() ?? '-';
-              final visitorCount =
-                  (item['visitorCount'] as num? ?? 0).toInt();
-              final discountCount =
-                  (item['discountCount'] as num? ?? 0).toInt();
-              final qty = (item['qty'] as num? ?? 0).toInt();
-              final subtotal =
-                  (item['subtotal'] as num? ?? 0).toInt();
+  // =========================================
+  // DETAIL LAPORAN
+  // =========================================
 
-              final serialStart = getSerial(
-                item,
-                'serialStart',
-                'serialStartNumber',
-              );
+  void _showReportDetail(String reportId, Map<String, dynamic> report) {
+    final reportData = _getReportData(report);
 
-              final serialEnd = getSerial(
-                item,
-                'serialEnd',
-                'serialEndNumber',
-              );
+    final summary = reportData['ticketSummary'] as Map? ?? {};
 
-              return Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.blue.shade100),
+    final totalVisitors = _number(reportData['totalVisitors']);
+
+    final cashRevenue = _number(reportData['cashRevenue']);
+
+    final qrisRevenue = _number(reportData['qrisRevenue']);
+
+    final totalRevenue = _number(reportData['totalRevenue']);
+
+    final submittedAt = report['submittedAt'] as Timestamp?;
+    final verifiedAt = report['verifiedAt'] as Timestamp?;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Detail Laporan Harian',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 17,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close, color: Colors.white),
+                      ),
+                    ],
+                  ),
                 ),
+
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _detailRow(
+                          'Tanggal Operasional',
+                          _formatDate(report['operationalDate']?.toString()),
+                        ),
+                        _detailRow(
+                          'Petugas Loket',
+                          report['loketName']?.toString() ?? '-',
+                        ),
+                        _detailRow(
+                          'Petugas Kasir',
+                          report['cashierName']?.toString() ?? '-',
+                        ),
+                        _detailRow(
+                          'Waktu Pengiriman',
+                          submittedAt == null
+                              ? '-'
+                              : DateFormat(
+                                  'dd/MM/yyyy HH:mm',
+                                ).format(submittedAt.toDate()),
+                        ),
+                        _detailRow(
+                          'Waktu Verifikasi',
+                          verifiedAt == null
+                              ? '-'
+                              : DateFormat(
+                                  'dd/MM/yyyy HH:mm',
+                                ).format(verifiedAt.toDate()),
+                        ),
+
+                        const Divider(height: 24),
+
+                        const Text(
+                          'Rincian Tiket',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        if (summary.isEmpty)
+                          const Text('Tidak ada rincian tiket.')
+                        else
+                          ...summary.entries.map((entry) {
+                            final item = Map<String, dynamic>.from(
+                              entry.value as Map,
+                            );
+
+                            return Card(
+                              color: Colors.green.shade50,
+                              margin: const EdgeInsets.only(bottom: 10),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['ticketName']?.toString() ?? 'Tiket',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _detailRow(
+                                      'Harga Tiket',
+                                      _currencyFormat.format(
+                                        _number(item['price']),
+                                      ),
+                                    ),
+                                    _detailRow(
+                                      'Nomor Seri',
+                                      '${item['serialStart']} - '
+                                          '${item['serialEnd']}',
+                                    ),
+                                    _detailRow(
+                                      'Jumlah Tiket Fisik',
+                                      '${_number(item['serialCount'])}',
+                                    ),
+                                    _detailRow(
+                                      'Tiket Gratis',
+                                      '${_number(item['freeCount'])}',
+                                    ),
+                                    _detailRow(
+                                      'Tiket Berbayar',
+                                      '${_number(item['paidCount'])}',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+
+                        const Divider(height: 24),
+
+                        const Text(
+                          'Rekap Keuangan',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        _detailRow('Total Pengunjung', '$totalVisitors orang'),
+                        _detailRow(
+                          'Pendapatan Tunai',
+                          _currencyFormat.format(cashRevenue),
+                        ),
+                        _detailRow(
+                          'QRIS / Transfer',
+                          _currencyFormat.format(qrisRevenue),
+                        ),
+
+                        const Divider(),
+
+                        _detailRow(
+                          'Total Pendapatan',
+                          _currencyFormat.format(totalRevenue),
+                          bold: true,
+                        ),
+
+                        const Divider(height: 24),
+
+                        const Text(
+                          'Ketidaksesuaian',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        _buildSubcollectionList(
+                          reportId: reportId,
+                          collection: 'discrepancies',
+                          emptyMessage: 'Tidak ada catatan ketidaksesuaian.',
+                        ),
+
+                        const Divider(height: 24),
+
+                        const Text(
+                          'Riwayat Koreksi Kasir',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        _buildSubcollectionList(
+                          reportId: reportId,
+                          collection: 'corrections',
+                          emptyMessage: 'Tidak ada riwayat koreksi.',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: primaryColor,
+                      ),
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Tutup'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // =========================================
+  // SUBKOLEKSI TEMUAN DAN KOREKSI
+  // =========================================
+
+  Widget _buildSubcollectionList({
+    required String reportId,
+    required String collection,
+    required String emptyMessage,
+  }) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore
+          .collection('daily_reports')
+          .doc(reportId)
+          .collection(collection)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Text(
+            'Gagal memuat data: ${snapshot.error}',
+            style: const TextStyle(color: Colors.red, fontSize: 12),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              emptyMessage,
+              style: const TextStyle(color: Colors.black54, fontSize: 13),
+            ),
+          );
+        }
+
+        return Column(
+          children: docs.map((doc) {
+            final data = doc.data();
+
+            final description =
+                data['description']?.toString() ??
+                data['reason']?.toString() ??
+                '-';
+
+            final type =
+                data['type']?.toString() ??
+                data['fieldName']?.toString() ??
+                'Catatan';
+
+            final oldValue = data['oldValue'];
+            final newValue = data['newValue'];
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
+                      type,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 8),
-
-                    _detailRow('Jumlah Pengunjung', '$visitorCount orang'),
-                    _detailRow('Tiket Gratis/Potongan', '$discountCount'),
-                    _detailRow('Tiket Dibayar', '$qty lembar'),
-
-                    const Divider(),
-
-                    if (qty > 0 && serialStart.isNotEmpty && serialEnd.isNotEmpty)
-                      _detailRow(
-                        'Nomor Seri',
-                        serialStart == serialEnd
-                            ? serialStart
-                            : '$serialStart - $serialEnd',
-                      )
-                    else if (qty == 0)
-                      _detailRow('Nomor Seri', 'Tidak ada tiket berbayar')
-                    else
-                      _detailRow('Nomor Seri', 'Tidak tersedia'),
-
-                    const SizedBox(height: 4),
-
-                    _detailRow(
-                      'Subtotal',
-                      _currencyFormat.format(subtotal),
-                    ),
+                    const SizedBox(height: 5),
+                    Text(description),
+                    if (oldValue != null || newValue != null) ...[
+                      const Divider(),
+                      _detailRow('Nilai Sebelum', oldValue?.toString() ?? '-'),
+                      _detailRow('Nilai Sesudah', newValue?.toString() ?? '-'),
+                    ],
+                    if (data['serialNumber'] != null)
+                      _detailRow('Nomor Seri', data['serialNumber'].toString()),
+                    if (data['cashierName'] != null)
+                      _detailRow('Petugas', data['cashierName'].toString()),
                   ],
                 ),
-              );
-            }),
-
-            const Divider(height: 24),
-
-            _detailRow(
-              'Total Pembayaran',
-              _currencyFormat.format(totalAmount),
-            ),
-
-            if (paymentMethod == 'Tunai') ...[
-              _detailRow(
-                'Uang Diterima',
-                _currencyFormat.format(cashReceived),
               ),
-              _detailRow(
-                'Kembalian',
-                _currencyFormat.format(changeAmount),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Tutup'),
-        ),
-      ],
-    ),
-  );
-}
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
 
-
-  Widget _detailRow(String label, String value) {
+  Widget _detailRow(String label, String value, {bool bold = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label),
-          const SizedBox(width: 12),
-          Flexible(child: Text(value, textAlign: TextAlign.end)),
+          Expanded(
+            flex: 5,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 5,
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                color: bold ? primaryColor : null,
+                fontSize: 13,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _summaryCard(String title, String value, IconData icon, Color color) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
+  // =========================================
+  // KELOLA KATEGORI TIKET
+  // =========================================
+
+  void _showTicketDialog({DocumentSnapshot<Map<String, dynamic>>? doc}) {
+    final data = doc?.data();
+
+    final nameController = TextEditingController(text: data?['name'] ?? '');
+
+    final priceController = TextEditingController(
+      text: data != null ? '${data['price']}' : '',
     );
+
+    bool isActive = data?['isActive'] ?? true;
+    bool saving = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(
+                doc == null ? 'Tambah Kategori Tiket' : 'Edit Kategori Tiket',
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Tiket',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: priceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Harga Tiket (Rp)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Status Aktif'),
+                    value: isActive,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        isActive = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Batal'),
+                ),
+                FilledButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final name = nameController.text.trim();
+
+                          final price =
+                              int.tryParse(priceController.text.trim()) ?? 0;
+
+                          if (name.isEmpty || price <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Nama dan harga tiket harus valid.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            saving = true;
+                          });
+
+                          try {
+                            final collection = _firestore.collection(
+                              'ticket_types',
+                            );
+
+                            if (doc == null) {
+                              await collection.add({
+                                'name': name,
+                                'price': price,
+                                'isActive': isActive,
+                                'createdAt': FieldValue.serverTimestamp(),
+                              });
+                            } else {
+                              await collection.doc(doc.id).update({
+                                'name': name,
+                                'price': price,
+                                'isActive': isActive,
+                              });
+                            }
+
+                            if (!mounted ||
+                                !context.mounted ||
+                                !dialogContext.mounted) {
+                              return;
+                            }
+
+                            Navigator.pop(dialogContext);
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Kategori tiket berhasil disimpan.',
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!context.mounted || !dialogContext.mounted) {
+                              return;
+                            }
+
+                            setDialogState(() {
+                              saving = false;
+                            });
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Gagal menyimpan kategori tiket: $e',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: saving
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Simpan'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) {
+      nameController.dispose();
+      priceController.dispose();
+    });
   }
 
   Widget _buildTicketManagementTab() {
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showTicketDialog(),
-        backgroundColor: const Color(0xFF0D47A1),
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
         label: const Text('Tambah Tiket'),
@@ -545,22 +1094,36 @@ void _showTransactionDetails(Map<String, dynamic> data, String docId) {
           }
 
           final docs = snapshot.data?.docs ?? [];
+
           if (docs.isEmpty) {
             return const Center(
-              child: Text('Belum ada kategori tiket. Tekan "+ Tambah Tiket".'),
+              child: Text(
+                'Belum ada kategori tiket. '
+                'Tekan tombol Tambah Tiket.',
+              ),
             );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final doc = docs[index];
               final data = doc.data();
+
               final isActive = data['isActive'] ?? true;
 
               return Card(
                 child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isActive
+                        ? Colors.green.shade50
+                        : Colors.grey.shade200,
+                    child: Icon(
+                      Icons.confirmation_number_outlined,
+                      color: isActive ? primaryColor : Colors.grey,
+                    ),
+                  ),
                   title: Text(
                     data['name'] ?? '',
                     style: TextStyle(
@@ -569,7 +1132,8 @@ void _showTransactionDetails(Map<String, dynamic> data, String docId) {
                     ),
                   ),
                   subtitle: Text(
-                    '${_currencyFormat.format(data['price'] ?? 0)} • ${isActive ? "Aktif" : "Nonaktif"}',
+                    '${_currencyFormat.format(data['price'] ?? 0)}'
+                    ' • ${isActive ? 'Aktif' : 'Nonaktif'}',
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.edit_outlined),
@@ -580,6 +1144,51 @@ void _showTransactionDetails(Map<String, dynamic> data, String docId) {
             },
           );
         },
+      ),
+    );
+  }
+
+  // =========================================
+  // BUILD
+  // =========================================
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Manajemen • ${widget.userName}'),
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Keluar',
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+              },
+            ),
+          ],
+          bottom: const TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.amber,
+            tabs: [
+              Tab(
+                icon: Icon(Icons.analytics_outlined),
+                text: 'Dashboard & Laporan',
+              ),
+              Tab(
+                icon: Icon(Icons.confirmation_number_outlined),
+                text: 'Kategori Tiket',
+              ),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [_buildReportTab(), _buildTicketManagementTab()],
+        ),
       ),
     );
   }
