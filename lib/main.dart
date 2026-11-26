@@ -8,7 +8,7 @@ import 'Screen/Loket/loket_screen.dart';
 import 'Screen/Kasir/kasir_screen.dart';
 import 'Screen/Pengelola/pengelola_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'theme/app_theme.dart';
+import 'core/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

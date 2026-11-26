@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lembah_wilis/theme/app_theme.dart';
-import 'package:lembah_wilis/widgets/role_scaffold.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:lembah_wilis/Screen/Auth/login_screen.dart';
+import 'package:lembah_wilis/core/theme/app_theme.dart';
+import 'package:lembah_wilis/shared/widgets/role_scaffold.dart';
 
 Widget _testApp() {
   return MaterialApp(
@@ -50,6 +52,28 @@ Future<void> _pumpAtSize(
 }
 
 void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('id_ID');
+  });
+
+  testWidgets('shows all branding highlights on a mobile login screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.light, home: const LoginScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Proses laporan yang terstruktur'), findsOneWidget);
+    expect(find.text('Pemeriksaan berlapis'), findsOneWidget);
+    expect(find.text('Ringkasan operasional terverifikasi'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('uses bottom navigation on a phone', (tester) async {
     await _pumpAtSize(tester, width: 360, height: 800);
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../theme/app_theme.dart';
+import '../../core/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -120,13 +120,13 @@ class _LoginScreenState extends State<LoginScreen> {
           width: compact ? 54 : 68,
           height: compact ? 54 : 68,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.12),
+            color: AppColors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+            border: Border.all(color: AppColors.white.withValues(alpha: 0.18)),
           ),
           child: Icon(
-            Icons.terrain_rounded,
-            color: Colors.white,
+            Icons.forest_rounded,
+            color: AppColors.white,
             size: compact ? 30 : 38,
           ),
         ),
@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
           'Wisata Lembah Wilis',
           textAlign: compact ? TextAlign.center : TextAlign.start,
           style: TextStyle(
-            color: Colors.white,
+            color: AppColors.white,
             fontSize: compact ? 23 : 34,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
@@ -147,51 +147,67 @@ class _LoginScreenState extends State<LoginScreen> {
           'dan laporan wisata.',
           textAlign: compact ? TextAlign.center : TextAlign.start,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.78),
+            color: AppColors.white.withValues(alpha: 0.78),
             fontSize: compact ? 13 : 16,
             height: 1.5,
           ),
         ),
-        if (!compact) ...[
-          const SizedBox(height: 36),
-          for (final item in const [
-            (Icons.fact_check_outlined, 'Proses laporan yang terstruktur'),
-            (Icons.verified_user_outlined, 'Pemeriksaan berlapis'),
-            (Icons.insights_outlined, 'Ringkasan operasional terverifikasi'),
-          ])
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Row(
-                children: [
-                  Icon(item.$1, size: 20, color: AppColors.amber),
-                  const SizedBox(width: 12),
-                  Text(
+        SizedBox(height: compact ? 18 : 36),
+        for (final item in const [
+          (Icons.fact_check_outlined, 'Proses laporan yang terstruktur'),
+          (Icons.verified_user_outlined, 'Pemeriksaan berlapis'),
+          (Icons.insights_outlined, 'Ringkasan operasional terverifikasi'),
+        ])
+          Padding(
+            padding: EdgeInsets.only(bottom: compact ? 10 : 16),
+            child: Row(
+              children: [
+                Icon(item.$1, size: 20, color: AppColors.amber),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
                     item.$2,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 14,
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-        ],
+          ),
       ],
     );
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 24 : 72,
-        vertical: compact ? 28 : 64,
-      ),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.forest, AppColors.forestDark],
+        image: DecorationImage(
+          image: AssetImage('lib/assets/images/lembahwilis.jpg'),
+          fit: BoxFit.cover,
         ),
       ),
-      child: compact
-          ? Center(child: content)
-          : Align(alignment: Alignment.centerLeft, child: content),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.forest.withValues(alpha: 0.58),
+              AppColors.forestDark.withValues(alpha: 0.76),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 24 : 72,
+            vertical: compact ? 28 : 64,
+          ),
+          child: compact
+              ? Center(child: content)
+              : Align(alignment: Alignment.centerLeft, child: content),
+        ),
+      ),
     );
   }
 
@@ -302,7 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppColors.white,
                           ),
                         )
                       : const Text('Masuk ke aplikasi'),

@@ -4,9 +4,10 @@ import 'dart:typed_data';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart' as xlsx;
 import 'package:file_saver/file_saver.dart';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+
+import '../core/utils/currency_formatter.dart';
 
 enum ReportExportFormat { csv, excel, pdf }
 
@@ -169,7 +170,6 @@ class ReportExportService {
   ) async {
     final document = pw.Document();
     final totals = _totals(reports);
-    final formatter = NumberFormat.decimalPattern('id_ID');
     final tableRows = reports
         .map(
           (report) => <dynamic>[
@@ -179,9 +179,9 @@ class ReportExportService {
             '${report.totalVisitors}',
             '${report.paidTickets}',
             '${report.freeTickets}',
-            formatter.format(report.cashRevenue),
-            formatter.format(report.qrisRevenue),
-            formatter.format(report.totalRevenue),
+            CurrencyFormatter.formatInput(report.cashRevenue),
+            CurrencyFormatter.formatInput(report.qrisRevenue),
+            CurrencyFormatter.formatInput(report.totalRevenue),
           ],
         )
         .toList();
@@ -193,9 +193,9 @@ class ReportExportService {
       '${totals.totalVisitors}',
       '${totals.paidTickets}',
       '${totals.freeTickets}',
-      formatter.format(totals.cashRevenue),
-      formatter.format(totals.qrisRevenue),
-      formatter.format(totals.totalRevenue),
+      CurrencyFormatter.formatInput(totals.cashRevenue),
+      CurrencyFormatter.formatInput(totals.qrisRevenue),
+      CurrencyFormatter.formatInput(totals.totalRevenue),
     ]);
 
     document.addPage(
@@ -213,7 +213,7 @@ class ReportExportService {
           pw.Text(
             'Jumlah laporan: ${reports.length}  |  '
             'Total pengunjung: ${totals.totalVisitors}  |  '
-            'Total pendapatan: Rp ${formatter.format(totals.totalRevenue)}',
+            'Total pendapatan: ${CurrencyFormatter.formatRupiah(totals.totalRevenue)}',
           ),
           pw.SizedBox(height: 12),
           pw.TableHelper.fromTextArray(

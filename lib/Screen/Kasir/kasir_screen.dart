@@ -4,8 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../Models/daily_report_model.dart';
 import '../../Services/daily_report_service.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/role_scaffold.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/currency_formatter.dart';
+import '../../shared/widgets/dashboard_widgets.dart';
+import '../../shared/widgets/role_scaffold.dart';
 
 class KasirScreen extends StatefulWidget {
   final String userName;
@@ -19,14 +21,15 @@ class KasirScreen extends StatefulWidget {
 class _KasirScreenState extends State<KasirScreen> {
   final DailyReportService _service = DailyReportService();
 
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: 'Rp',
-    decimalDigits: 0,
-  );
-
   String _selectedFilter = 'Semua';
   int _selectedIndex = 0;
+  late final Stream<List<DailyReport>> _reportsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportsStream = _service.streamAllReports();
+  }
 
   String _filterStatus(String value) {
     switch (value) {
@@ -65,7 +68,7 @@ class _KasirScreenState extends State<KasirScreen> {
       case 'submitted':
         return AppColors.amber;
       case 'under_review':
-        return const Color(0xFF55718B);
+        return AppColors.info;
       case 'needs_correction':
         return AppColors.danger;
       case 'verified':
@@ -81,7 +84,7 @@ class _KasirScreenState extends State<KasirScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        backgroundColor: isError ? AppColors.danger : AppColors.success,
       ),
     );
   }
@@ -125,6 +128,7 @@ class _KasirScreenState extends State<KasirScreen> {
     return RoleScaffold(
       title: _selectedIndex == 0 ? 'Pemeriksaan Laporan' : 'Riwayat Laporan',
       userName: widget.userName,
+      roleLabel: 'PETUGAS KASIR',
       destinations: const [
         RoleNavigationDestination(label: 'Antrian', icon: Icons.inbox_outlined),
         RoleNavigationDestination(
@@ -162,43 +166,12 @@ class _KasirScreenState extends State<KasirScreen> {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1050),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.forest, AppColors.forestDark],
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'OPERASIONAL KASIR',
-                  style: TextStyle(
-                    color: AppColors.amber,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Halo, ${widget.userName}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                const Text(
-                  'Cocokkan tiket fisik dan pembayaran sebelum laporan diverifikasi.',
-                  style: TextStyle(color: Colors.white70, height: 1.4),
-                ),
-              ],
-            ),
+          child: RoleBannerCard(
+            kicker: 'Operasional Kasir',
+            title: 'Halo, ${widget.userName}',
+            description:
+                'Cocokkan tiket fisik dan pembayaran sebelum laporan diverifikasi.',
+            icon: Icons.fact_check_outlined,
           ),
         ),
       ),
@@ -238,7 +211,7 @@ class _KasirScreenState extends State<KasirScreen> {
 
   Widget _buildReportList() {
     return StreamBuilder<List<DailyReport>>(
-      stream: _service.streamAllReports(),
+      stream: _reportsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -275,7 +248,16 @@ class _KasirScreenState extends State<KasirScreen> {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [
                 _buildQueueSummary(allReports),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
+                const WorkflowGuideCard(
+                  title: 'Alur pemeriksaan',
+                  steps: [
+                    'Terima laporan dan cocokkan fisik tiket dengan nomor seri.',
+                    'Periksa jumlah tiket gratis dan nominal pembayaran.',
+                    'Catat temuan untuk koreksi atau verifikasi laporan.',
+                  ],
+                ),
+                const SizedBox(height: 14),
                 if (reports.isEmpty)
                   _buildEmptyState()
                 else
@@ -289,86 +271,75 @@ class _KasirScreenState extends State<KasirScreen> {
   }
 
   Widget _buildQueueSummary(List<DailyReport> reports) {
-    final visible = _selectedIndex == 1
-        ? reports.where((report) => report.status == 'verified').length
-        : reports.where((report) => report.status == 'submitted').length;
-    final secondary = _selectedIndex == 1
-        ? reports.where((report) => report.status == 'verified').length
-        : reports
-              .where(
-                (report) =>
-                    report.status == 'under_review' ||
-                    report.status == 'needs_correction',
-              )
-              .length;
-
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        _buildCountPill(
-          _selectedIndex == 1 ? 'Terverifikasi' : 'Menunggu pemeriksaan',
-          visible,
-          _selectedIndex == 1 ? AppColors.forest : AppColors.amber,
-        ),
-        if (_selectedIndex == 0)
-          _buildCountPill(
-            'Dalam pemeriksaan / koreksi',
-            secondary,
-            const Color(0xFF55718B),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildCountPill(String label, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+    final metrics = [
+      StatSummaryCard(
+        title: 'Menunggu pemeriksaan',
+        value:
+            '${reports.where((report) => report.status == 'submitted').length}',
+        icon: Icons.inbox_outlined,
+        accent: AppColors.amber,
       ),
-      child: Text(
-        '$label  •  $count laporan',
-        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      StatSummaryCard(
+        title: 'Sedang diperiksa',
+        value:
+            '${reports.where((report) => report.status == 'under_review').length}',
+        icon: Icons.fact_check_outlined,
+        accent: AppColors.info,
       ),
+      StatSummaryCard(
+        title: 'Perlu koreksi',
+        value:
+            '${reports.where((report) => report.status == 'needs_correction').length}',
+        icon: Icons.edit_note_outlined,
+        accent: AppColors.danger,
+      ),
+      StatSummaryCard(
+        title: 'Terverifikasi',
+        value:
+            '${reports.where((report) => report.status == 'verified').length}',
+        icon: Icons.verified_outlined,
+        accent: AppColors.forest,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? 4
+            : constraints.maxWidth >= 360
+            ? 2
+            : 1;
+        const spacing = 10.0;
+        final width =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final metric in metrics) SizedBox(width: width, child: metric),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildEmptyState() {
     final isHistory = _selectedIndex == 1;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          children: [
-            Icon(
-              isHistory ? Icons.verified_outlined : Icons.inbox_outlined,
-              size: 44,
-              color: AppColors.sage,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              isHistory
-                  ? 'Belum ada laporan terverifikasi.'
-                  : 'Antrian masih kosong.',
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              isHistory
-                  ? 'Laporan yang selesai diperiksa akan tersimpan di sini.'
-                  : 'Laporan dari Petugas Loket akan muncul di sini.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.muted),
-            ),
-          ],
-        ),
-      ),
+    return EmptyStateWidget(
+      icon: isHistory ? Icons.verified_outlined : Icons.inbox_outlined,
+      title: isHistory
+          ? 'Belum ada laporan terverifikasi'
+          : 'Antrian masih kosong',
+      message: isHistory
+          ? 'Laporan yang selesai diperiksa akan tersimpan di sini.'
+          : 'Laporan dari Petugas Loket akan tampil otomatis saat dikirim.',
+      actionLabel: !isHistory && _selectedFilter != 'Semua'
+          ? 'Tampilkan semua laporan'
+          : null,
+      onAction: !isHistory && _selectedFilter != 'Semua'
+          ? () => setState(() => _selectedFilter = 'Semua')
+          : null,
     );
   }
 
@@ -450,7 +421,7 @@ class _KasirScreenState extends State<KasirScreen> {
               _buildInfoRow('Total pengunjung', '${data.totalVisitors} orang'),
               _buildInfoRow(
                 'Total pendapatan',
-                _currencyFormat.format(data.totalRevenue),
+                CurrencyFormatter.formatRupiah(data.totalRevenue),
                 emphasized: true,
               ),
               const SizedBox(height: 14),
@@ -580,12 +551,6 @@ class KasirReportDetailScreen extends StatefulWidget {
 class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
   final DailyReportService _service = DailyReportService();
 
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: 'Rp',
-    decimalDigits: 0,
-  );
-
   final TextEditingController _cashController = TextEditingController();
 
   final TextEditingController _qrisController = TextEditingController();
@@ -647,8 +612,8 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
   void _initializeControllers(DailyReport report) {
     final data = report.submittedData;
 
-    _cashController.text = data.cashRevenue.toString();
-    _qrisController.text = data.qrisRevenue.toString();
+    _cashController.text = CurrencyFormatter.formatInput(data.cashRevenue);
+    _qrisController.text = CurrencyFormatter.formatInput(data.qrisRevenue);
 
     for (final entry in data.ticketSummary.entries) {
       final id = entry.key;
@@ -674,7 +639,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        backgroundColor: isError ? AppColors.danger : AppColors.success,
       ),
     );
   }
@@ -707,8 +672,8 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
       );
     }
 
-    final cash = int.tryParse(_cashController.text.trim());
-    final qris = int.tryParse(_qrisController.text.trim());
+    final cash = CurrencyFormatter.parseInput(_cashController.text);
+    final qris = CurrencyFormatter.parseInput(_qrisController.text);
 
     if (cash == null || qris == null || cash < 0 || qris < 0) {
       throw Exception('Nominal pembayaran tidak valid.');
@@ -934,7 +899,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
             _buildReadOnlyRow(
               'Harga tiket',
-              _currencyFormat.format(ticket.price),
+              CurrencyFormatter.formatRupiah(ticket.price),
             ),
 
             const SizedBox(height: 12),
@@ -1014,8 +979,10 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
               controller: _cashController,
               enabled: !_isVerified,
               keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
               decoration: const InputDecoration(
-                labelText: 'Total Tunai (Rp)',
+                labelText: 'Total Tunai',
+                prefixText: 'Rp ',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -1026,8 +993,10 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
               controller: _qrisController,
               enabled: !_isVerified,
               keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
               decoration: const InputDecoration(
-                labelText: 'Total QRIS/Transfer (Rp)',
+                labelText: 'Total QRIS/Transfer',
+                prefixText: 'Rp ',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -1036,7 +1005,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
             _buildReadOnlyRow(
               'Total pembayaran menurut laporan Loket',
-              _currencyFormat.format(data.totalRevenue),
+              CurrencyFormatter.formatRupiah(data.totalRevenue),
             ),
           ],
         ),
@@ -1054,7 +1023,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
         if (snapshot.hasError) {
           return Text(
             'Gagal memuat riwayat: ${snapshot.error}',
-            style: const TextStyle(color: Colors.red),
+            style: const TextStyle(color: AppColors.danger),
           );
         }
 
@@ -1070,7 +1039,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
         if (docs.isEmpty) {
           return const Text(
             'Belum ada catatan.',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: AppColors.muted),
           );
         }
 
@@ -1080,9 +1049,12 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
             if (isDiscrepancy) {
               return Card(
-                color: Colors.red.shade50,
+                color: AppColors.dangerSurface,
                 child: ListTile(
-                  leading: const Icon(Icons.warning_amber, color: Colors.red),
+                  leading: const Icon(
+                    Icons.warning_amber,
+                    color: AppColors.danger,
+                  ),
                   title: Text(data['description'] ?? 'Ketidaksesuaian'),
                   subtitle: Text('Jenis: ${data['type'] ?? '-'}'),
                 ),
@@ -1091,7 +1063,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
             return Card(
               child: ListTile(
-                leading: const Icon(Icons.edit_note, color: Colors.blue),
+                leading: const Icon(Icons.edit_note, color: AppColors.info),
                 title: Text(data['fieldName'] ?? 'Perubahan data'),
                 subtitle: Text(
                   'Sebelum: ${data['oldValue'] ?? '-'}\n'
@@ -1129,7 +1101,9 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
           'Status: ${report.status}',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: report.status == 'verified' ? Colors.green : Colors.orange,
+            color: report.status == 'verified'
+                ? AppColors.success
+                : AppColors.amber,
           ),
         ),
 
@@ -1165,7 +1139,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
                 const Divider(),
                 _buildReadOnlyRow(
                   'Total pendapatan',
-                  _currencyFormat.format(data.totalRevenue),
+                  CurrencyFormatter.formatRupiah(data.totalRevenue),
                 ),
               ],
             ),
@@ -1195,19 +1169,19 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: AppColors.successSurface,
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Row(
               children: [
-                Icon(Icons.verified, color: Colors.green),
+                Icon(Icons.verified, color: AppColors.success),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Laporan telah diverifikasi dan diteruskan '
                     'kepada Pengelola.',
                     style: TextStyle(
-                      color: Colors.green,
+                      color: AppColors.success,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1221,8 +1195,8 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
             child: ElevatedButton.icon(
               onPressed: _isProcessing ? null : _verifyReport,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B5E20),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.forest,
+                foregroundColor: AppColors.white,
                 padding: const EdgeInsets.all(15),
               ),
               icon: const Icon(Icons.verified),

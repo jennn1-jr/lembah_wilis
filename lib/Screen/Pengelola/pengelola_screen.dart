@@ -6,8 +6,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import '../../Services/report_export_service.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/role_scaffold.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/currency_formatter.dart';
+import '../../shared/widgets/dashboard_widgets.dart';
+import '../../shared/widgets/role_scaffold.dart';
 
 class PengelolaHomeScreen extends StatefulWidget {
   final String userName;
@@ -30,12 +32,6 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _ticketTypesStream =
       _firestore.collection('ticket_types').orderBy('name').snapshots();
-
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: 'Rp',
-    decimalDigits: 0,
-  );
 
   String _selectedPeriod = 'Hari Ini';
 
@@ -269,7 +265,11 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 45),
+                  const Icon(
+                    Icons.error_outline,
+                    color: AppColors.danger,
+                    size: 45,
+                  ),
                   const SizedBox(height: 12),
                   const Text(
                     'Gagal memuat laporan harian.',
@@ -328,6 +328,16 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             _buildWelcomeCard(),
+
+            const SizedBox(height: 18),
+            const WorkflowGuideCard(
+              title: 'Panduan ringkasan operasional',
+              steps: [
+                'Pilih periode untuk membatasi laporan terverifikasi.',
+                'Bandingkan pendapatan, jumlah pengunjung, dan grafik bulanan.',
+                'Buka laporan untuk detail atau ekspor sesuai periode aktif.',
+              ],
+            ),
 
             const SizedBox(height: 18),
 
@@ -413,7 +423,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: reports.isEmpty || _isExporting
-                            ? Colors.grey
+                            ? AppColors.muted
                             : primaryColor,
                       ),
                       borderRadius: BorderRadius.circular(4),
@@ -430,7 +440,9 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                         else
                           Icon(
                             Icons.download_outlined,
-                            color: reports.isEmpty ? Colors.grey : primaryColor,
+                            color: reports.isEmpty
+                                ? AppColors.muted
+                                : primaryColor,
                           ),
                         const SizedBox(width: 8),
                         Text(_isExporting ? 'Mengekspor...' : 'Ekspor laporan'),
@@ -453,33 +465,33 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
             _buildMetricGrid([
               _buildSummaryCard(
                 'Total Pendapatan',
-                _currencyFormat.format(totalRevenue),
+                CurrencyFormatter.formatRupiah(totalRevenue),
                 Icons.account_balance_wallet_outlined,
                 AppColors.forest,
               ),
               _buildSummaryCard(
                 'Pendapatan Tunai',
-                _currencyFormat.format(cashRevenue),
+                CurrencyFormatter.formatRupiah(cashRevenue),
                 Icons.payments_outlined,
-                const Color(0xFF46735F),
+                AppColors.success,
               ),
               _buildSummaryCard(
                 'QRIS / Transfer',
-                _currencyFormat.format(qrisRevenue),
+                CurrencyFormatter.formatRupiah(qrisRevenue),
                 Icons.qr_code_2,
-                const Color(0xFF596A91),
+                AppColors.qris,
               ),
               _buildSummaryCard(
                 'Total Pengunjung',
                 '$totalVisitors orang',
                 Icons.groups_outlined,
-                const Color(0xFF476B82),
+                AppColors.visitors,
               ),
               _buildSummaryCard(
                 'Tiket Berbayar',
                 '$totalPaidTickets lembar',
                 Icons.confirmation_number_outlined,
-                const Color(0xFF65748B),
+                AppColors.tickets,
               ),
               _buildSummaryCard(
                 'Tiket Gratis',
@@ -517,21 +529,12 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
             const SizedBox(height: 10),
 
             if (reports.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(28),
-                  child: Column(
-                    children: [
-                      Icon(Icons.inbox_outlined, size: 45, color: Colors.grey),
-                      SizedBox(height: 10),
-                      Text(
-                        'Belum ada laporan terverifikasi '
-                        'pada periode ini.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
+              const EmptyStateWidget(
+                icon: Icons.inbox_outlined,
+                title: 'Belum ada laporan untuk periode ini',
+                message:
+                    'Laporan yang sudah diverifikasi Kasir akan muncul '
+                    'di sini. Coba pilih periode lain.',
               )
             else
               ...reports.map((doc) {
@@ -604,7 +607,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                               ),
                               Flexible(
                                 child: Text(
-                                  _currencyFormat.format(revenue),
+                                  CurrencyFormatter.formatRupiah(revenue),
                                   textAlign: TextAlign.end,
                                   style: const TextStyle(
                                     color: AppColors.forest,
@@ -712,7 +715,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                           child: Tooltip(
                             message:
                                 '${DateFormat('MMMM', 'id_ID').format(DateTime(year, month))}: '
-                                '${_currencyFormat.format(monthlyRevenue[month - 1])}',
+                                '${CurrencyFormatter.formatRupiah(monthlyRevenue[month - 1])}',
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
@@ -802,41 +805,12 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
   }
 
   Widget _buildWelcomeCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.forest, AppColors.forestDark],
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Dashboard Manajemen',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Selamat Datang, ${widget.userName}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 19,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Pantau laporan operasional dan pendapatan '
-            'Wisata Lembah Wilis.',
-            style: TextStyle(color: Colors.white, fontSize: 12),
-          ),
-        ],
-      ),
+    return RoleBannerCard(
+      kicker: 'Dashboard Manajemen',
+      title: 'Selamat datang, ${widget.userName}',
+      description:
+          'Pantau laporan operasional dan pendapatan Wisata Lembah Wilis.',
+      icon: Icons.insights_outlined,
     );
   }
 
@@ -846,41 +820,11 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
     IconData icon,
     Color color,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 25),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 11,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    value,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return StatSummaryCard(
+      title: title,
+      value: value,
+      icon: icon,
+      accent: color,
     );
   }
 
@@ -928,7 +872,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                         child: Text(
                           'Detail Laporan Harian',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: AppColors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 17,
                           ),
@@ -936,7 +880,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(dialogContext),
-                        icon: const Icon(Icons.close, color: Colors.white),
+                        icon: const Icon(Icons.close, color: AppColors.white),
                       ),
                     ],
                   ),
@@ -998,7 +942,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                             );
 
                             return Card(
-                              color: Colors.green.shade50,
+                              color: AppColors.successSurface,
                               margin: const EdgeInsets.only(bottom: 10),
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
@@ -1014,7 +958,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                                     const SizedBox(height: 8),
                                     _detailRow(
                                       'Harga Tiket',
-                                      _currencyFormat.format(
+                                      CurrencyFormatter.formatRupiah(
                                         _number(item['price']),
                                       ),
                                     ),
@@ -1056,18 +1000,18 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                         _detailRow('Total Pengunjung', '$totalVisitors orang'),
                         _detailRow(
                           'Pendapatan Tunai',
-                          _currencyFormat.format(cashRevenue),
+                          CurrencyFormatter.formatRupiah(cashRevenue),
                         ),
                         _detailRow(
                           'QRIS / Transfer',
-                          _currencyFormat.format(qrisRevenue),
+                          CurrencyFormatter.formatRupiah(qrisRevenue),
                         ),
 
                         const Divider(),
 
                         _detailRow(
                           'Total Pendapatan',
-                          _currencyFormat.format(totalRevenue),
+                          CurrencyFormatter.formatRupiah(totalRevenue),
                           bold: true,
                         ),
 
@@ -1159,7 +1103,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
         if (snapshot.hasError) {
           return Text(
             'Gagal memuat data: ${snapshot.error}',
-            style: const TextStyle(color: Colors.red, fontSize: 12),
+            style: const TextStyle(color: AppColors.danger, fontSize: 12),
           );
         }
 
@@ -1170,7 +1114,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
               emptyMessage,
-              style: const TextStyle(color: Colors.black54, fontSize: 13),
+              style: const TextStyle(color: AppColors.muted, fontSize: 13),
             ),
           );
         }
@@ -1268,7 +1212,9 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
     final nameController = TextEditingController(text: data?['name'] ?? '');
 
     final priceController = TextEditingController(
-      text: data != null ? '${data['price']}' : '',
+      text: data != null
+          ? CurrencyFormatter.formatInput(_number(data['price']))
+          : '',
     );
 
     bool isActive = data?['isActive'] ?? true;
@@ -1299,8 +1245,10 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                       TextField(
                         controller: priceController,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [RupiahInputFormatter()],
                         decoration: const InputDecoration(
-                          labelText: 'Harga Tiket (Rp)',
+                          labelText: 'Harga Tiket',
+                          prefixText: 'Rp ',
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1330,7 +1278,10 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                           final name = nameController.text.trim();
 
                           final price =
-                              int.tryParse(priceController.text.trim()) ?? 0;
+                              CurrencyFormatter.parseInput(
+                                priceController.text,
+                              ) ??
+                              0;
 
                           if (name.isEmpty || price <= 0) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -1435,62 +1386,133 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
         }
 
         final docs = snapshot.data?.docs ?? [];
+        final activeCount = docs
+            .where((doc) => (doc.data()['isActive'] as bool?) ?? true)
+            .length;
+        final inactiveCount = docs.length - activeCount;
 
-        if (docs.isEmpty) {
-          return const Center(
-            child: Text(
-              'Belum ada kategori tiket. '
-              'Gunakan tombol Tambah Tiket.',
-            ),
-          );
-        }
-
-        return ListView.builder(
+        return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final doc = docs[index];
-            final data = doc.data();
-            final isActive = data['isActive'] ?? true;
+          children: [
+            const RoleBannerCard(
+              kicker: 'Pengaturan operasional',
+              title: 'Kategori tiket',
+              description:
+                  'Kelola nama, harga, dan status kategori yang digunakan '
+                  'Petugas Loket.',
+              icon: Icons.confirmation_number_outlined,
+            ),
+            const SizedBox(height: 14),
+            const WorkflowGuideCard(
+              title: 'Panduan kategori',
+              steps: [
+                'Tambahkan nama dan harga sesuai ketentuan operasional.',
+                'Nonaktifkan kategori yang tidak digunakan tanpa menghapusnya.',
+                'Pastikan kategori aktif tersedia untuk input Petugas Loket.',
+              ],
+            ),
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 900
+                    ? 3
+                    : constraints.maxWidth >= 420
+                    ? 2
+                    : 1;
+                const spacing = 10.0;
+                final width =
+                    (constraints.maxWidth - spacing * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: StatSummaryCard(
+                        title: 'Total kategori',
+                        value: '${docs.length}',
+                        icon: Icons.category_outlined,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: StatSummaryCard(
+                        title: 'Kategori aktif',
+                        value: '$activeCount',
+                        icon: Icons.check_circle_outline_rounded,
+                        accent: AppColors.forest,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: StatSummaryCard(
+                        title: 'Kategori nonaktif',
+                        value: '$inactiveCount',
+                        icon: Icons.pause_circle_outline_rounded,
+                        accent: AppColors.muted,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            if (docs.isEmpty)
+              EmptyStateWidget(
+                icon: Icons.confirmation_number_outlined,
+                title: 'Belum ada kategori tiket',
+                message:
+                    'Tambahkan kategori agar Petugas Loket dapat '
+                    'menyusun laporan harian.',
+                actionLabel: 'Tambah kategori',
+                onAction: _showTicketDialog,
+              )
+            else
+              ...docs.map((doc) {
+                final data = doc.data();
+                final isActive = (data['isActive'] as bool?) ?? true;
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                leading: CircleAvatar(
-                  backgroundColor: isActive
-                      ? AppColors.sage.withValues(alpha: 0.18)
-                      : AppColors.canvas,
-                  child: Icon(
-                    Icons.confirmation_number_outlined,
-                    color: isActive ? primaryColor : AppColors.muted,
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    leading: CircleAvatar(
+                      backgroundColor: isActive
+                          ? AppColors.sage.withValues(alpha: 0.18)
+                          : AppColors.canvas,
+                      child: Icon(
+                        Icons.confirmation_number_outlined,
+                        color: isActive ? primaryColor : AppColors.muted,
+                      ),
+                    ),
+                    title: Text(
+                      data['name']?.toString() ?? '',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        decoration: isActive
+                            ? null
+                            : TextDecoration.lineThrough,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Text(
+                        '${CurrencyFormatter.formatRupiah(_number(data['price']))}'
+                        ' • ${isActive ? 'Aktif' : 'Nonaktif'}',
+                      ),
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Edit kategori',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _showTicketDialog(doc: doc),
+                    ),
                   ),
-                ),
-                title: Text(
-                  data['name']?.toString() ?? '',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    decoration: isActive ? null : TextDecoration.lineThrough,
-                  ),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 5),
-                  child: Text(
-                    '${_currencyFormat.format(data['price'] ?? 0)}'
-                    ' • ${isActive ? 'Aktif' : 'Nonaktif'}',
-                  ),
-                ),
-                trailing: IconButton(
-                  tooltip: 'Edit kategori',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => _showTicketDialog(doc: doc),
-                ),
-              ),
-            );
-          },
+                );
+              }),
+          ],
         );
       },
     );
@@ -1505,6 +1527,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
     return RoleScaffold(
       title: 'Manajemen Operasional',
       userName: widget.userName,
+      roleLabel: 'PENGELOLA',
       destinations: const [
         RoleNavigationDestination(
           label: 'Dashboard',

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  static const forest = Color(0xFF173F35);
-  static const forestDark = Color(0xFF102F28);
+  static const forest = Color(0xFF16382B);
+  static const forestDark = Color(0xFF10251D);
+  static const white = Color(0xFFFFFFFF);
   static const sage = Color(0xFF8DA58C);
   static const amber = Color(0xFFC9933B);
   static const canvas = Color(0xFFF4F6F1);
@@ -10,6 +11,14 @@ abstract final class AppColors {
   static const muted = Color(0xFF69766F);
   static const border = Color(0xFFE0E7E0);
   static const danger = Color(0xFFB5473B);
+  static const dangerSurface = Color(0xFFFCEDEA);
+  static const success = Color(0xFF2F7254);
+  static const successSurface = Color(0xFFEAF3ED);
+  static const info = Color(0xFF55718B);
+  static const qris = Color(0xFF596A91);
+  static const visitors = Color(0xFF476B82);
+  static const tickets = Color(0xFF65748B);
+  static const shadow = Color(0x14000000);
 }
 
 abstract final class AppTheme {
@@ -20,11 +29,11 @@ abstract final class AppTheme {
           brightness: Brightness.light,
         ).copyWith(
           primary: AppColors.forest,
-          onPrimary: Colors.white,
+          onPrimary: AppColors.white,
           secondary: AppColors.sage,
           onSecondary: AppColors.forestDark,
           tertiary: AppColors.amber,
-          surface: Colors.white,
+          surface: AppColors.white,
           onSurface: AppColors.ink,
           error: AppColors.danger,
         );
@@ -35,12 +44,14 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: AppColors.canvas,
       fontFamily: 'Roboto',
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: AppColors.white,
         foregroundColor: AppColors.ink,
         elevation: 0,
-        scrolledUnderElevation: 0,
+        scrolledUnderElevation: 1,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
+        shadowColor: AppColors.shadow,
+        shape: Border(bottom: BorderSide(color: AppColors.border)),
         titleTextStyle: TextStyle(
           color: AppColors.ink,
           fontSize: 20,
@@ -48,7 +59,7 @@ abstract final class AppTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        color: Colors.white,
+        color: AppColors.white,
         elevation: 0,
         margin: EdgeInsets.zero,
         surfaceTintColor: Colors.transparent,
@@ -59,7 +70,7 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: AppColors.white,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 15,
@@ -102,7 +113,7 @@ abstract final class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         indicatorColor: AppColors.sage.withValues(alpha: 0.2),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
@@ -117,7 +128,7 @@ abstract final class AppTheme {
         ),
       ),
       navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         indicatorColor: AppColors.sage.withValues(alpha: 0.2),
         selectedIconTheme: const IconThemeData(color: AppColors.forest),
         unselectedIconTheme: const IconThemeData(color: AppColors.muted),

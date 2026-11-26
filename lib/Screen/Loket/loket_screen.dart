@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../../Models/daily_report_model.dart';
 import '../../Services/daily_report_service.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/role_scaffold.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/currency_formatter.dart';
+import '../../shared/widgets/dashboard_widgets.dart';
+import '../../shared/widgets/role_scaffold.dart';
 
 class LoketScreen extends StatefulWidget {
   final String userName;
@@ -112,8 +114,8 @@ class _LoketScreenState extends State<LoketScreen> {
         }
       }
 
-      _cashController.text = data.cashRevenue.toString();
-      _qrisController.text = data.qrisRevenue.toString();
+      _cashController.text = CurrencyFormatter.formatInput(data.cashRevenue);
+      _qrisController.text = CurrencyFormatter.formatInput(data.qrisRevenue);
     }
   }
 
@@ -190,8 +192,8 @@ class _LoketScreenState extends State<LoketScreen> {
       );
     }
 
-    final cash = int.tryParse(_cashController.text.trim()) ?? 0;
-    final qris = int.tryParse(_qrisController.text.trim()) ?? 0;
+    final cash = CurrencyFormatter.parseInput(_cashController.text) ?? 0;
+    final qris = CurrencyFormatter.parseInput(_qrisController.text) ?? 0;
 
     if (cash < 0 || qris < 0) {
       throw Exception('Nominal pembayaran tidak boleh negatif.');
@@ -310,7 +312,7 @@ class _LoketScreenState extends State<LoketScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        backgroundColor: isError ? AppColors.danger : AppColors.success,
       ),
     );
   }
@@ -336,6 +338,24 @@ class _LoketScreenState extends State<LoketScreen> {
     );
   }
 
+  Widget _buildCurrencyField({
+    required String label,
+    required TextEditingController controller,
+    String? hint,
+  }) {
+    return TextFormField(
+      controller: controller,
+      enabled: !_isLocked && !_isSaving,
+      keyboardType: TextInputType.number,
+      inputFormatters: [RupiahInputFormatter()],
+      decoration: InputDecoration(
+        labelText: label,
+        prefixText: 'Rp ',
+        hintText: hint,
+      ),
+    );
+  }
+
   Widget _buildTicketCard(Map<String, dynamic> ticket) {
     final id = ticket['id'] as String;
     final name = ticket['name'] as String;
@@ -354,8 +374,8 @@ class _LoketScreenState extends State<LoketScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Harga tiket: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp', decimalDigits: 0).format(price)}',
-              style: const TextStyle(color: Colors.grey),
+              'Harga tiket: ${CurrencyFormatter.formatRupiah(price)}',
+              style: const TextStyle(color: AppColors.muted),
             ),
             const SizedBox(height: 16),
 
@@ -411,7 +431,7 @@ class _LoketScreenState extends State<LoketScreen> {
             const Text(
               'Jumlah tiket dan tiket berbayar akan dihitung otomatis '
               'berdasarkan rentang nomor seri.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: AppColors.muted),
             ),
           ],
         ),
@@ -432,18 +452,18 @@ class _LoketScreenState extends State<LoketScreen> {
             ),
             const SizedBox(height: 16),
 
-            _buildNumberField(
-              label: 'Total Tunai (Rp)',
+            _buildCurrencyField(
+              label: 'Total Tunai',
               controller: _cashController,
-              hint: 'Contoh: 250000',
+              hint: 'Contoh: 250.000',
             ),
 
             const SizedBox(height: 12),
 
-            _buildNumberField(
-              label: 'Total QRIS/Transfer (Rp)',
+            _buildCurrencyField(
+              label: 'Total QRIS/Transfer',
               controller: _qrisController,
-              hint: 'Contoh: 150000',
+              hint: 'Contoh: 150.000',
             ),
 
             const SizedBox(height: 8),
@@ -451,7 +471,7 @@ class _LoketScreenState extends State<LoketScreen> {
             const Text(
               'Masukkan total pembayaran untuk kedua kategori tiket '
               'secara gabungan, bukan per kategori.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: AppColors.muted),
             ),
           ],
         ),
@@ -522,41 +542,7 @@ class _LoketScreenState extends State<LoketScreen> {
   }
 
   Widget _buildOverviewMetric(String label, String value, IconData icon) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.forest),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.forest,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return StatSummaryCard(title: label, value: value, icon: icon);
   }
 
   Widget _buildOverview() {
@@ -588,43 +574,12 @@ class _LoketScreenState extends State<LoketScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.forest, AppColors.forestDark],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'OPERASIONAL LOKET',
-                        style: TextStyle(
-                          color: AppColors.amber,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Selamat datang, ${widget.userName}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Siapkan rekap tiket dan pembayaran untuk penutupan harian.',
-                        style: TextStyle(color: Colors.white70, height: 1.4),
-                      ),
-                    ],
-                  ),
+                RoleBannerCard(
+                  kicker: 'Operasional Loket',
+                  title: 'Selamat datang, ${widget.userName}',
+                  description:
+                      'Siapkan rekap tiket dan pembayaran untuk penutupan harian.',
+                  icon: Icons.confirmation_number_outlined,
                 ),
                 const SizedBox(height: 18),
                 Card(
@@ -662,7 +617,11 @@ class _LoketScreenState extends State<LoketScreen> {
                 const SizedBox(height: 18),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final columns = constraints.maxWidth >= 760 ? 2 : 1;
+                    final columns = constraints.maxWidth >= 1000
+                        ? 4
+                        : constraints.maxWidth >= 600
+                        ? 2
+                        : 1;
                     const spacing = 12.0;
                     final width =
                         (constraints.maxWidth - spacing * (columns - 1)) /
@@ -685,11 +644,9 @@ class _LoketScreenState extends State<LoketScreen> {
                       ),
                       _buildOverviewMetric(
                         'Total pendapatan',
-                        NumberFormat.currency(
-                          locale: 'id_ID',
-                          symbol: 'Rp',
-                          decimalDigits: 0,
-                        ).format(reportData?.totalRevenue ?? 0),
+                        CurrencyFormatter.formatRupiah(
+                          reportData?.totalRevenue ?? 0,
+                        ),
                         Icons.account_balance_wallet_outlined,
                       ),
                     ];
@@ -705,26 +662,34 @@ class _LoketScreenState extends State<LoketScreen> {
                   },
                 ),
                 const SizedBox(height: 18),
+                const WorkflowGuideCard(
+                  title: 'Alur penutupan harian',
+                  steps: [
+                    'Pilih tanggal operasional yang sesuai.',
+                    'Masukkan rentang nomor seri dan jumlah tiket gratis.',
+                    'Catat pembayaran, lalu simpan draft atau kirim ke Kasir.',
+                  ],
+                ),
+                const SizedBox(height: 16),
                 if (_ticketTypes.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'Belum ada kategori tiket aktif. Hubungi Pengelola sebelum membuat laporan.',
-                        style: TextStyle(color: AppColors.muted),
-                      ),
+                  const EmptyStateWidget(
+                    icon: Icons.confirmation_number_outlined,
+                    title: 'Kategori tiket belum tersedia',
+                    message:
+                        'Hubungi Pengelola untuk menyiapkan kategori aktif '
+                        'sebelum membuat laporan.',
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _isLoading || _isSaving
+                          ? null
+                          : () => setState(() => _selectedIndex = 1),
+                      icon: const Icon(Icons.edit_note_rounded),
+                      label: const Text('Buka laporan harian'),
                     ),
                   ),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _isLoading || _isSaving
-                        ? null
-                        : () => setState(() => _selectedIndex = 1),
-                    icon: const Icon(Icons.edit_note_rounded),
-                    label: const Text('Buka laporan harian'),
-                  ),
-                ),
               ],
             ),
           ),
@@ -741,10 +706,13 @@ class _LoketScreenState extends State<LoketScreen> {
     if (_ticketTypes.isEmpty) {
       return const Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Tidak ada kategori tiket aktif. Hubungi Pengelola untuk menyiapkannya.',
-            textAlign: TextAlign.center,
+          padding: EdgeInsets.all(20),
+          child: EmptyStateWidget(
+            icon: Icons.confirmation_number_outlined,
+            title: 'Kategori tiket belum tersedia',
+            message:
+                'Hubungi Pengelola untuk menyiapkan kategori tiket aktif '
+                'sebelum membuat laporan.',
           ),
         ),
       );
@@ -758,17 +726,12 @@ class _LoketScreenState extends State<LoketScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Laporan Harian',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppColors.ink,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Masukkan rentang tiket fisik dan rekap pembayaran.',
-                style: TextStyle(color: AppColors.muted),
+              const RoleBannerCard(
+                kicker: 'Penutupan harian',
+                title: 'Laporan Harian',
+                description:
+                    'Masukkan rentang tiket fisik dan rekap pembayaran.',
+                icon: Icons.receipt_long_outlined,
               ),
               const SizedBox(height: 18),
               InkWell(
@@ -786,6 +749,15 @@ class _LoketScreenState extends State<LoketScreen> {
               ),
               const SizedBox(height: 14),
               _buildStatus(),
+              const SizedBox(height: 12),
+              const WorkflowGuideCard(
+                title: 'Panduan pengisian',
+                steps: [
+                  'Pastikan tanggal operasional sudah benar.',
+                  'Isi rentang nomor seri dan tiket gratis tiap kategori.',
+                  'Masukkan total pembayaran sebelum menyimpan atau mengirim.',
+                ],
+              ),
               const SizedBox(height: 20),
               const Text(
                 'Data tiket',
@@ -858,11 +830,11 @@ class _LoketScreenState extends State<LoketScreen> {
   }
 
   @override
-  @override
   Widget build(BuildContext context) {
     return RoleScaffold(
       title: 'Operasional Loket',
       userName: widget.userName,
+      roleLabel: 'PETUGAS LOKET',
       destinations: const [
         RoleNavigationDestination(
           label: 'Ringkasan',
