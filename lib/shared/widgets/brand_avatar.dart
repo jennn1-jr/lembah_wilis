@@ -7,14 +7,31 @@ class BrandAvatar extends StatelessWidget {
 
   final double radius;
 
-  static const String assetPath = 'lib/assets/images/iconlembahwilis.jpg';
+  static const String assetPath = 'lib/assets/images/iconlembahwilis_round.png';
 
   @override
   Widget build(BuildContext context) {
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: AppColors.forest,
-      backgroundImage: const AssetImage(assetPath),
+    final size = radius * 2;
+
+    return ClipOval(
+      child: Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: size,
+          height: size,
+          color: AppColors.forest,
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.forest_rounded,
+            color: AppColors.white,
+            size: radius,
+          ),
+        ),
+      ),
     );
   }
 }

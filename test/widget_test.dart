@@ -73,6 +73,10 @@ void main() {
     expect(find.text('Pemeriksaan berlapis'), findsOneWidget);
     expect(find.text('Ringkasan operasional terverifikasi'), findsOneWidget);
     expect(find.byType(BrandAvatar), findsOneWidget);
+    final logoImage = tester.widget<Image>(find.byType(Image));
+    expect(logoImage.width, 92);
+    expect(logoImage.height, 92);
+    expect(logoImage.filterQuality, FilterQuality.high);
     expect(tester.takeException(), isNull);
   });
 

@@ -118,8 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
           : CrossAxisAlignment.start,
       children: [
         Container(
-          width: 128,
-          height: 128,
+          width: 104,
+          height: 104,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
-          child: const BrandAvatar(radius: 60),
+          child: const BrandAvatar(radius: 46),
         ),
         SizedBox(height: compact ? 18 : 28),
         Text(

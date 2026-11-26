@@ -53,6 +53,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -68,6 +70,30 @@ flutter:
   assets:
     - lib/assets/images/lembahwilis.jpg
     - lib/assets/images/iconlembahwilis.jpg
+    - lib/assets/images/iconlembahwilis_round.png
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: lib/assets/images/iconlembahwilis_launcher.png
+  adaptive_icon_background: "#1B5E20"
+  adaptive_icon_foreground: lib/assets/images/iconlembahwilis_adaptive.png
+  adaptive_icon_foreground_inset: 0
+
+flutter_native_splash:
+  color: "#1B5E20"
+  color_dark: "#1B5E20"
+  image: lib/assets/images/iconlembahwilis_round.png
+  branding: lib/assets/images/splash_branding.png
+  android: true
+  ios: false
+  web: false
+  android_12:
+    color: "#1B5E20"
+    color_dark: "#1B5E20"
+    icon_background_color: "#1B5E20"
+    image: lib/assets/images/iconlembahwilis_splash.png
+    branding: lib/assets/images/splash_branding.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
