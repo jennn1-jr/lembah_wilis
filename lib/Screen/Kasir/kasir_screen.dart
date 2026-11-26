@@ -505,6 +505,59 @@ class _KasirScreenState extends State<KasirScreen> {
   }
 }
 
+class _DiscrepancyDialog extends StatefulWidget {
+  const _DiscrepancyDialog();
+
+  @override
+  State<_DiscrepancyDialog> createState() => _DiscrepancyDialogState();
+}
+
+class _DiscrepancyDialogState extends State<_DiscrepancyDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final description = _controller.text.trim();
+    if (description.isEmpty) return;
+    Navigator.of(context).pop(description);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Catat Ketidaksesuaian'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        minLines: 3,
+        maxLines: 4,
+        textCapitalization: TextCapitalization.sentences,
+        onChanged: (_) => setState(() {}),
+        decoration: const InputDecoration(
+          labelText: 'Deskripsi temuan',
+          hintText: 'Contoh: Nomor seri fisik tidak sesuai dengan laporan.',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: _controller.text.trim().isEmpty ? null : _submit,
+          child: const Text('Simpan Temuan'),
+        ),
+      ],
+    );
+  }
+}
+
 // =====================================================
 // HALAMAN DETAIL PEMERIKSAAN LAPORAN
 // =====================================================
@@ -537,8 +590,6 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
   final TextEditingController _qrisController = TextEditingController();
 
-  final TextEditingController _discrepancyController = TextEditingController();
-
   final TextEditingController _correctionReasonController =
       TextEditingController();
 
@@ -551,10 +602,23 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
   bool _isLoading = true;
   bool _isProcessing = false;
   bool _controllersInitialized = false;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _discrepanciesStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _correctionsStream;
 
   @override
   void initState() {
     super.initState();
+    final reportRef = FirebaseFirestore.instance
+        .collection('daily_reports')
+        .doc(widget.operationalDate);
+    _discrepanciesStream = reportRef
+        .collection('discrepancies')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+    _correctionsStream = reportRef
+        .collection('corrections')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
     _loadReport();
   }
 
@@ -662,41 +726,12 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
     if (user == null || _report == null) return;
 
-    final controller = TextEditingController();
-
     final description = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Catat Ketidaksesuaian'),
-          content: TextField(
-            controller: controller,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'Deskripsi temuan',
-              hintText: 'Contoh: Nomor seri fisik tidak sesuai dengan laporan.',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, controller.text.trim());
-              },
-              child: const Text('Simpan Temuan'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => const _DiscrepancyDialog(),
     );
 
-    controller.dispose();
-
-    if (description == null || description.isEmpty) return;
+    if (!mounted || description == null || description.isEmpty) return;
 
     setState(() => _isProcessing = true);
 
@@ -707,6 +742,8 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
         type: 'general',
         description: description,
       );
+
+      if (!mounted) return;
 
       await _loadReport();
 
@@ -758,7 +795,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
       ),
     );
 
-    if (confirmed != true) return;
+    if (!mounted || confirmed != true) return;
 
     setState(() => _isProcessing = true);
 
@@ -1007,14 +1044,12 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
     );
   }
 
-  Widget _buildHistorySection(String collectionName) {
+  Widget _buildHistorySection({
+    required Stream<QuerySnapshot<Map<String, dynamic>>> stream,
+    required bool isDiscrepancy,
+  }) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('daily_reports')
-          .doc(widget.operationalDate)
-          .collection(collectionName)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream: stream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Text(
@@ -1043,7 +1078,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
           children: docs.map((doc) {
             final data = doc.data();
 
-            if (collectionName == 'discrepancies') {
+            if (isDiscrepancy) {
               return Card(
                 color: Colors.red.shade50,
                 child: ListTile(
@@ -1139,7 +1174,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
         _buildSectionTitle('4. Catatan Ketidaksesuaian'),
 
-        _buildHistorySection('discrepancies'),
+        _buildHistorySection(stream: _discrepanciesStream, isDiscrepancy: true),
 
         if (!_isVerified && canVerify) ...[
           const SizedBox(height: 10),
@@ -1152,7 +1187,7 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
         _buildSectionTitle('5. Riwayat Koreksi'),
 
-        _buildHistorySection('corrections'),
+        _buildHistorySection(stream: _correctionsStream, isDiscrepancy: false),
 
         const SizedBox(height: 20),
 
@@ -1227,7 +1262,6 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
   void dispose() {
     _cashController.dispose();
     _qrisController.dispose();
-    _discrepancyController.dispose();
     _correctionReasonController.dispose();
 
     for (final controller in _startControllers.values) {
