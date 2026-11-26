@@ -67,6 +67,7 @@ flutter:
 
   assets:
     - lib/assets/images/lembahwilis.jpg
+    - lib/assets/images/iconlembahwilis.jpg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

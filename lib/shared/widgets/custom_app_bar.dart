@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'brand_avatar.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   const CustomAppBar({
@@ -31,10 +32,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         ? 'd MMM yyyy • HH:mm'
         : 'EEEE, d MMMM yyyy • HH:mm';
     final dateLabel = DateFormat(datePattern, 'id_ID').format(dateTime);
-    final initial = userName.trim().isEmpty
-        ? '?'
-        : userName.trim().substring(0, 1).toUpperCase();
-
     return AppBar(
       toolbarHeight: preferredSize.height,
       leading: leading,
@@ -85,18 +82,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             padding: const EdgeInsets.only(right: 6),
             child: Tooltip(
               message: userName,
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.sage.withValues(alpha: 0.18),
-                child: Text(
-                  initial,
-                  style: const TextStyle(
-                    color: AppColors.forest,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
+              child: const BrandAvatar(radius: 16),
             ),
           )
         else
@@ -106,18 +92,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               constraints: const BoxConstraints(maxWidth: 190),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: AppColors.sage.withValues(alpha: 0.18),
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        color: AppColors.forest,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
+                  const BrandAvatar(radius: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

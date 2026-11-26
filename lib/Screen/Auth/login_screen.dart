@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_avatar.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -117,20 +118,26 @@ class _LoginScreenState extends State<LoginScreen> {
           : CrossAxisAlignment.start,
       children: [
         Container(
-          width: compact ? 54 : 68,
-          height: compact ? 54 : 68,
+          width: 128,
+          height: 128,
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.white.withValues(alpha: 0.18)),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.amber.withValues(alpha: 0.9),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.forestDark.withValues(alpha: 0.28),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          child: Icon(
-            Icons.forest_rounded,
-            color: AppColors.white,
-            size: compact ? 30 : 38,
-          ),
+          child: const BrandAvatar(radius: 60),
         ),
-        SizedBox(height: compact ? 12 : 28),
+        SizedBox(height: compact ? 18 : 28),
         Text(
           'Wisata Lembah Wilis',
           textAlign: compact ? TextAlign.center : TextAlign.start,

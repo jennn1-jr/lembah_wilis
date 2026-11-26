@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'brand_avatar.dart';
 import 'custom_app_bar.dart';
 
 @immutable
@@ -69,10 +70,6 @@ class _RoleScaffoldState extends State<RoleScaffold> {
       ),
   ];
 
-  String get _initial => widget.userName.trim().isEmpty
-      ? '?'
-      : widget.userName.trim().substring(0, 1).toUpperCase();
-
   @override
   void initState() {
     super.initState();
@@ -88,21 +85,7 @@ class _RoleScaffoldState extends State<RoleScaffold> {
   }
 
   Widget _buildBrandMark() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Image.asset(
-        'lib/assets/images/lembahwilis.jpg',
-        width: 40,
-        height: 40,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          width: 40,
-          height: 40,
-          color: AppColors.forest,
-          child: const Icon(Icons.forest_rounded, color: AppColors.white),
-        ),
-      ),
-    );
+    return const BrandAvatar(radius: 20);
   }
 
   Widget _buildDesktopSidebar() {
@@ -223,18 +206,7 @@ class _RoleScaffoldState extends State<RoleScaffold> {
             child: _sidebarExpanded
                 ? Row(
                     children: [
-                      CircleAvatar(
-                        radius: 17,
-                        backgroundColor: AppColors.sage.withValues(alpha: 0.18),
-                        child: Text(
-                          _initial,
-                          style: const TextStyle(
-                            color: AppColors.forest,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
+                      const BrandAvatar(radius: 17),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -269,18 +241,7 @@ class _RoleScaffoldState extends State<RoleScaffold> {
                   )
                 : Tooltip(
                     message: '${widget.userName} • ${widget.roleLabel}',
-                    child: CircleAvatar(
-                      radius: 17,
-                      backgroundColor: AppColors.sage.withValues(alpha: 0.18),
-                      child: Text(
-                        _initial,
-                        style: const TextStyle(
-                          color: AppColors.forest,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
+                    child: const BrandAvatar(radius: 17),
                   ),
           ),
         ],
@@ -310,18 +271,7 @@ class _RoleScaffoldState extends State<RoleScaffold> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Tooltip(
               message: '${widget.userName} • ${widget.roleLabel}',
-              child: CircleAvatar(
-                radius: 17,
-                backgroundColor: AppColors.sage.withValues(alpha: 0.18),
-                child: Text(
-                  _initial,
-                  style: const TextStyle(
-                    color: AppColors.forest,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
+              child: const BrandAvatar(radius: 17),
             ),
           ),
         ],

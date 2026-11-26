@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lembah_wilis/Screen/Auth/login_screen.dart';
 import 'package:lembah_wilis/core/theme/app_theme.dart';
+import 'package:lembah_wilis/shared/widgets/brand_avatar.dart';
 import 'package:lembah_wilis/shared/widgets/role_scaffold.dart';
 
 Widget _testApp() {
@@ -71,6 +72,7 @@ void main() {
     expect(find.text('Proses laporan yang terstruktur'), findsOneWidget);
     expect(find.text('Pemeriksaan berlapis'), findsOneWidget);
     expect(find.text('Ringkasan operasional terverifikasi'), findsOneWidget);
+    expect(find.byType(BrandAvatar), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -95,6 +97,7 @@ void main() {
 
     expect(find.text('LEMBAH WILIS'), findsOneWidget);
     expect(find.byTooltip('Ciutkan navigasi'), findsOneWidget);
+    expect(find.byType(BrandAvatar), findsNWidgets(3));
     expect(tester.takeException(), isNull);
   });
 }
