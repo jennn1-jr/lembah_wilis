@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+
+import '../../Services/report_export_service.dart';
 
 class PengelolaHomeScreen extends StatefulWidget {
   final String userName;
@@ -35,6 +39,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
 
   DateTime? _customStartDate;
   DateTime? _customEndDate;
+  bool _isExporting = false;
 
   static const Color primaryColor = Color(0xFF1B5E20);
 
@@ -152,6 +157,95 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
     });
   }
 
+  List<ReportExportRow> _createExportRows(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> reports,
+  ) {
+    return reports.map((doc) {
+      final data = doc.data();
+      final reportData = _getReportData(data);
+      final rawSummary = reportData['ticketSummary'] as Map? ?? {};
+
+      var paidTickets = 0;
+      var freeTickets = 0;
+      for (final entry in rawSummary.values) {
+        if (entry is! Map) continue;
+        paidTickets += _number(entry['paidCount']);
+        freeTickets += _number(entry['freeCount']);
+      }
+
+      return ReportExportRow(
+        operationalDate: _formatDate(data['operationalDate']?.toString()),
+        loketName: data['loketName']?.toString() ?? '-',
+        cashierName: data['cashierName']?.toString() ?? '-',
+        totalVisitors: _number(reportData['totalVisitors']),
+        paidTickets: paidTickets,
+        freeTickets: freeTickets,
+        cashRevenue: _number(reportData['cashRevenue']),
+        qrisRevenue: _number(reportData['qrisRevenue']),
+        totalRevenue: _number(reportData['totalRevenue']),
+      );
+    }).toList();
+  }
+
+  String _currentPeriodLabel() {
+    if (_selectedPeriod == 'Rentang Tanggal' &&
+        _customStartDate != null &&
+        _customEndDate != null) {
+      final start = DateFormat('dd/MM/yyyy').format(_customStartDate!);
+      final end = DateFormat('dd/MM/yyyy').format(_customEndDate!);
+      return '$start - $end';
+    }
+
+    if (_selectedPeriod == 'Tahun Ini') {
+      return 'Tahun Ini (${DateTime.now().year})';
+    }
+
+    return _selectedPeriod;
+  }
+
+  Future<void> _exportReports(
+    List<ReportExportRow> reports,
+    String periodLabel,
+    ReportExportFormat format,
+  ) async {
+    if (reports.isEmpty || _isExporting) return;
+
+    setState(() {
+      _isExporting = true;
+    });
+
+    try {
+      await ReportExportService.saveReport(
+        reports: reports,
+        periodLabel: periodLabel,
+        format: format,
+      );
+
+      if (!mounted) return;
+
+      final formatLabel = switch (format) {
+        ReportExportFormat.csv => 'CSV',
+        ReportExportFormat.excel => 'Excel',
+        ReportExportFormat.pdf => 'PDF',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Laporan $formatLabel berhasil diekspor.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengekspor laporan: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
+  }
+
   // =========================================
   // DASHBOARD LAPORAN
   // =========================================
@@ -199,6 +293,8 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
 
           return _isInSelectedPeriod(data['operationalDate']?.toString());
         }).toList();
+        final exportRows = _createExportRows(reports);
+        final periodLabel = _currentPeriodLabel();
 
         int totalRevenue = 0;
         int totalVisitors = 0;
@@ -268,18 +364,80 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
 
             const SizedBox(height: 8),
 
-            OutlinedButton.icon(
-              onPressed: _selectCustomDateRange,
-              icon: const Icon(Icons.date_range),
-              label: Text(
-                _selectedPeriod == 'Rentang Tanggal' &&
-                        _customStartDate != null &&
-                        _customEndDate != null
-                    ? '${DateFormat('dd/MM/yyyy').format(_customStartDate!)}'
-                          ' - '
-                          '${DateFormat('dd/MM/yyyy').format(_customEndDate!)}'
-                    : 'Pilih Rentang Tanggal',
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _selectCustomDateRange,
+                  icon: const Icon(Icons.date_range),
+                  label: Text(
+                    _selectedPeriod == 'Rentang Tanggal' &&
+                            _customStartDate != null &&
+                            _customEndDate != null
+                        ? '${DateFormat('dd/MM/yyyy').format(_customStartDate!)}'
+                              ' - '
+                              '${DateFormat('dd/MM/yyyy').format(_customEndDate!)}'
+                        : 'Pilih Rentang Tanggal',
+                  ),
+                ),
+                PopupMenuButton<ReportExportFormat>(
+                  enabled: reports.isNotEmpty && !_isExporting,
+                  tooltip: 'Ekspor laporan',
+                  onSelected: (format) {
+                    unawaited(
+                      _exportReports(exportRows, periodLabel, format),
+                    );
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: ReportExportFormat.csv,
+                      child: Text('CSV (.csv)'),
+                    ),
+                    PopupMenuItem(
+                      value: ReportExportFormat.excel,
+                      child: Text('Excel (.xlsx)'),
+                    ),
+                    PopupMenuItem(
+                      value: ReportExportFormat.pdf,
+                      child: Text('PDF (.pdf)'),
+                    ),
+                  ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: reports.isEmpty || _isExporting
+                            ? Colors.grey
+                            : primaryColor,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isExporting)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          Icon(
+                            Icons.download_outlined,
+                            color: reports.isEmpty ? Colors.grey : primaryColor,
+                          ),
+                        const SizedBox(width: 8),
+                        Text(_isExporting ? 'Mengekspor...' : 'Ekspor laporan'),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 18),
