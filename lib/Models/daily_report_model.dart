@@ -1,6 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'package:cloud_firestore/cloud_firestore.dart'; 
- 
 /// Model untuk satu jenis tiket dalam laporan harian.
 class TicketSummary {
   final String ticketTypeId;
@@ -147,9 +146,7 @@ class ReportData {
     final summary = rawSummary.map(
       (key, value) => MapEntry(
         key.toString(),
-        TicketSummary.fromMap(
-          Map<String, dynamic>.from(value as Map),
-        ),
+        TicketSummary.fromMap(Map<String, dynamic>.from(value as Map)),
       ),
     );
 
@@ -210,17 +207,12 @@ class DailyReport {
       'submittedAt': submittedAt == null
           ? null
           : Timestamp.fromDate(submittedAt!),
-      'verifiedAt': verifiedAt == null
-          ? null
-          : Timestamp.fromDate(verifiedAt!),
+      'verifiedAt': verifiedAt == null ? null : Timestamp.fromDate(verifiedAt!),
     };
   }
 
-  factory DailyReport.fromFirestore(
-    Map<String, dynamic> map,
-  ) {
-    final submittedMap =
-        Map<String, dynamic>.from(map['submittedData'] as Map);
+  factory DailyReport.fromFirestore(Map<String, dynamic> map) {
+    final submittedMap = Map<String, dynamic>.from(map['submittedData'] as Map);
 
     final verifiedRaw = map['verifiedData'];
 
@@ -237,9 +229,7 @@ class DailyReport {
       loketName: map['loketName'] as String? ?? '',
       submittedData: ReportData.fromMap(submittedMap),
       verifiedData: verifiedRaw is Map
-          ? ReportData.fromMap(
-              Map<String, dynamic>.from(verifiedRaw),
-            )
+          ? ReportData.fromMap(Map<String, dynamic>.from(verifiedRaw))
           : null,
       cashierId: map['cashierId'] as String?,
       cashierName: map['cashierName'] as String?,

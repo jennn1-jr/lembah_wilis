@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import '../../Services/report_export_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/role_scaffold.dart';
 
 class PengelolaHomeScreen extends StatefulWidget {
   final String userName;
@@ -40,8 +42,9 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
   DateTime? _customStartDate;
   DateTime? _customEndDate;
   bool _isExporting = false;
+  int _selectedIndex = 0;
 
-  static const Color primaryColor = Color(0xFF1B5E20);
+  static const Color primaryColor = AppColors.forest;
 
   // =========================================
   // HELPER
@@ -386,9 +389,7 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
                   enabled: reports.isNotEmpty && !_isExporting,
                   tooltip: 'Ekspor laporan',
                   onSelected: (format) {
-                    unawaited(
-                      _exportReports(exportRows, periodLabel, format),
-                    );
+                    unawaited(_exportReports(exportRows, periodLabel, format));
                   },
                   itemBuilder: (context) => const [
                     PopupMenuItem(
@@ -449,76 +450,48 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
 
             const SizedBox(height: 10),
 
-            _buildSummaryCard(
-              'Total Pendapatan',
-              _currencyFormat.format(totalRevenue),
-              Icons.account_balance_wallet_outlined,
-              Colors.green.shade700,
-            ),
+            _buildMetricGrid([
+              _buildSummaryCard(
+                'Total Pendapatan',
+                _currencyFormat.format(totalRevenue),
+                Icons.account_balance_wallet_outlined,
+                AppColors.forest,
+              ),
+              _buildSummaryCard(
+                'Pendapatan Tunai',
+                _currencyFormat.format(cashRevenue),
+                Icons.payments_outlined,
+                const Color(0xFF46735F),
+              ),
+              _buildSummaryCard(
+                'QRIS / Transfer',
+                _currencyFormat.format(qrisRevenue),
+                Icons.qr_code_2,
+                const Color(0xFF596A91),
+              ),
+              _buildSummaryCard(
+                'Total Pengunjung',
+                '$totalVisitors orang',
+                Icons.groups_outlined,
+                const Color(0xFF476B82),
+              ),
+              _buildSummaryCard(
+                'Tiket Berbayar',
+                '$totalPaidTickets lembar',
+                Icons.confirmation_number_outlined,
+                const Color(0xFF65748B),
+              ),
+              _buildSummaryCard(
+                'Tiket Gratis',
+                '$totalFreeTickets lembar',
+                Icons.card_giftcard,
+                AppColors.amber,
+              ),
+            ]),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
 
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Pendapatan Tunai',
-                    _currencyFormat.format(cashRevenue),
-                    Icons.payments_outlined,
-                    Colors.teal.shade700,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'QRIS / Transfer',
-                    _currencyFormat.format(qrisRevenue),
-                    Icons.qr_code_2,
-                    Colors.deepPurple.shade700,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 18),
-
-            const Text(
-              'Ringkasan Pengunjung',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 10),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Total Pengunjung',
-                    '$totalVisitors Orang',
-                    Icons.groups_outlined,
-                    Colors.blue.shade800,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Tiket Berbayar',
-                    '$totalPaidTickets Lembar',
-                    Icons.confirmation_number_outlined,
-                    Colors.indigo.shade700,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            _buildSummaryCard(
-              'Tiket Gratis',
-              '$totalFreeTickets Lembar',
-              Icons.card_giftcard,
-              Colors.orange.shade800,
-            ),
+            _buildRevenueChart(allDocs),
 
             const SizedBox(height: 20),
 
@@ -564,51 +537,86 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
               ...reports.map((doc) {
                 final data = doc.data();
                 final reportData = _getReportData(data);
-
                 final revenue = _number(reportData['totalRevenue']);
-
                 final visitors = _number(reportData['totalVisitors']);
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(12),
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0xFFE8F5E9),
-                      child: Icon(Icons.verified_outlined, color: primaryColor),
-                    ),
-                    title: Text(
-                      _formatDate(data['operationalDate']?.toString()),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 5),
-                      child: Text(
-                        'Loket: ${data['loketName'] ?? '-'}\n'
-                        'Kasir: ${data['cashierName'] ?? '-'}\n'
-                        '$visitors pengunjung',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => _showReportDetail(doc.id, data),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.verified_outlined,
+                                color: primaryColor,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _formatDate(
+                                    data['operationalDate']?.toString(),
+                                  ),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              _buildStatusBadge('Terverifikasi'),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                          Wrap(
+                            spacing: 22,
+                            runSpacing: 8,
+                            children: [
+                              _reportFact(
+                                'Petugas Loket',
+                                data['loketName']?.toString() ?? '-',
+                              ),
+                              _reportFact(
+                                'Petugas Kasir',
+                                data['cashierName']?.toString() ?? '-',
+                              ),
+                              _reportFact('Pengunjung', '$visitors orang'),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.account_balance_wallet_outlined,
+                                size: 18,
+                                color: AppColors.forest,
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Total pendapatan',
+                                  style: TextStyle(color: AppColors.muted),
+                                ),
+                              ),
+                              Flexible(
+                                child: Text(
+                                  _currencyFormat.format(revenue),
+                                  textAlign: TextAlign.end,
+                                  style: const TextStyle(
+                                    color: AppColors.forest,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _currencyFormat.format(revenue),
-                          style: const TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        const Text(
-                          'Terverifikasi',
-                          style: TextStyle(fontSize: 10, color: Colors.green),
-                        ),
-                      ],
-                    ),
-                    onTap: () => _showReportDetail(doc.id, data),
                   ),
                 );
               }),
@@ -622,12 +630,187 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
   // KARTU DASHBOARD
   // =========================================
 
+  Widget _buildMetricGrid(List<Widget> cards) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1000
+            ? 3
+            : constraints.maxWidth >= 620
+            ? 2
+            : 1;
+        const spacing = 12.0;
+        final cardWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final card in cards) SizedBox(width: cardWidth, child: card),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildRevenueChart(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> allDocs,
+  ) {
+    final year = DateTime.now().year;
+    final monthlyRevenue = List<int>.filled(12, 0);
+
+    for (final doc in allDocs) {
+      final data = doc.data();
+      final date = _parseOperationalDate(data['operationalDate']?.toString());
+      if (date == null || date.year != year) continue;
+
+      final reportData = _getReportData(data);
+      monthlyRevenue[date.month - 1] += _number(reportData['totalRevenue']);
+    }
+
+    final maximum = monthlyRevenue.fold<int>(
+      0,
+      (current, value) => value > current ? value : current,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Pendapatan per Bulan',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Data laporan terverifikasi • $year',
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 20),
+            if (maximum == 0)
+              const SizedBox(
+                height: 150,
+                child: Center(
+                  child: Text(
+                    'Belum ada data pendapatan untuk tahun ini.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                height: 160,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var month = 1; month <= 12; month++)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: Tooltip(
+                            message:
+                                '${DateFormat('MMMM', 'id_ID').format(DateTime(year, month))}: '
+                                '${_currencyFormat.format(monthlyRevenue[month - 1])}',
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: Container(
+                                      width: double.infinity,
+                                      height: monthlyRevenue[month - 1] == 0
+                                          ? 3
+                                          : (100 *
+                                                    monthlyRevenue[month - 1] /
+                                                    maximum)
+                                                .clamp(8, 100)
+                                                .toDouble(),
+                                      decoration: BoxDecoration(
+                                        color: monthlyRevenue[month - 1] == 0
+                                            ? AppColors.border
+                                            : AppColors.forest,
+                                        borderRadius:
+                                            const BorderRadius.vertical(
+                                              top: Radius.circular(5),
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  DateFormat(
+                                    'MMM',
+                                    'id_ID',
+                                  ).format(DateTime(year, month)),
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _reportFact(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.muted, fontSize: 11),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusBadge(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.forest.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.forest,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   Widget _buildWelcomeCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: primaryColor,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.forest, AppColors.forestDark],
+        ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -668,23 +851,28 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(width: 12),
+            Icon(icon, color: color, size: 25),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(color: Colors.black54, fontSize: 11),
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 11,
+                    ),
                   ),
                   const SizedBox(height: 5),
                   Text(
                     value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: color,
-                      fontSize: 15,
+                      fontSize: 14,
                     ),
                   ),
                 ],
@@ -1095,37 +1283,40 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
               title: Text(
                 doc == null ? 'Tambah Kategori Tiket' : 'Edit Kategori Tiket',
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nama Tiket',
-                      border: OutlineInputBorder(),
-                    ),
+              content: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nama Tiket',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: priceController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Harga Tiket (Rp)',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Status Aktif'),
+                        value: isActive,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            isActive = value;
+                          });
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: priceController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Harga Tiket (Rp)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Status Aktif'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isActive = value;
-                      });
-                    },
-                  ),
-                ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -1229,80 +1420,79 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
   }
 
   Widget _buildTicketManagementTab() {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showTicketDialog(),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Tambah Tiket'),
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _ticketTypesStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _ticketTypesStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Gagal memuat kategori tiket: ${snapshot.error}'),
-            );
-          }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Gagal memuat kategori tiket: ${snapshot.error}'),
+          );
+        }
 
-          final docs = snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
-          if (docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'Belum ada kategori tiket. '
-                'Tekan tombol Tambah Tiket.',
-              ),
-            );
-          }
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text(
+              'Belum ada kategori tiket. '
+              'Gunakan tombol Tambah Tiket.',
+            ),
+          );
+        }
 
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final data = doc.data();
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data();
+            final isActive = data['isActive'] ?? true;
 
-              final isActive = data['isActive'] ?? true;
-
-              return Card(
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: isActive
-                        ? Colors.green.shade50
-                        : Colors.grey.shade200,
-                    child: Icon(
-                      Icons.confirmation_number_outlined,
-                      color: isActive ? primaryColor : Colors.grey,
-                    ),
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                leading: CircleAvatar(
+                  backgroundColor: isActive
+                      ? AppColors.sage.withValues(alpha: 0.18)
+                      : AppColors.canvas,
+                  child: Icon(
+                    Icons.confirmation_number_outlined,
+                    color: isActive ? primaryColor : AppColors.muted,
                   ),
-                  title: Text(
-                    data['name'] ?? '',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      decoration: isActive ? null : TextDecoration.lineThrough,
-                    ),
+                ),
+                title: Text(
+                  data['name']?.toString() ?? '',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    decoration: isActive ? null : TextDecoration.lineThrough,
                   ),
-                  subtitle: Text(
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: Text(
                     '${_currencyFormat.format(data['price'] ?? 0)}'
                     ' • ${isActive ? 'Aktif' : 'Nonaktif'}',
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => _showTicketDialog(doc: doc),
-                  ),
                 ),
-              );
-            },
-          );
-        },
-      ),
+                trailing: IconButton(
+                  tooltip: 'Edit kategori',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _showTicketDialog(doc: doc),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1312,42 +1502,44 @@ class _PengelolaHomeScreenState extends State<PengelolaHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text('Manajemen • ${widget.userName}'),
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Keluar',
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-              },
-            ),
-          ],
-          bottom: const TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.amber,
-            tabs: [
-              Tab(
-                icon: Icon(Icons.analytics_outlined),
-                text: 'Dashboard & Laporan',
-              ),
-              Tab(
-                icon: Icon(Icons.confirmation_number_outlined),
-                text: 'Kategori Tiket',
-              ),
-            ],
-          ),
+    return RoleScaffold(
+      title: 'Manajemen Operasional',
+      userName: widget.userName,
+      destinations: const [
+        RoleNavigationDestination(
+          label: 'Dashboard',
+          icon: Icons.analytics_outlined,
         ),
-        body: TabBarView(
-          children: [_buildReportTab(), _buildTicketManagementTab()],
+        RoleNavigationDestination(
+          label: 'Kategori tiket',
+          icon: Icons.confirmation_number_outlined,
         ),
-      ),
+      ],
+      selectedIndex: _selectedIndex,
+      onDestinationSelected: (index) {
+        setState(() {
+          _selectedIndex = index;
+        });
+      },
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout_rounded),
+          tooltip: 'Keluar',
+          onPressed: () async {
+            await FirebaseAuth.instance.signOut();
+          },
+        ),
+      ],
+      floatingActionButton: _selectedIndex == 1
+          ? FloatingActionButton.extended(
+              onPressed: () => _showTicketDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Tambah Tiket'),
+            )
+          : null,
+      body: _selectedIndex == 0
+          ? _buildReportTab()
+          : _buildTicketManagementTab(),
     );
   }
 }

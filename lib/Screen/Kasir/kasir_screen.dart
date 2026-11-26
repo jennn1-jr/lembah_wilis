@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../Models/daily_report_model.dart';
 import '../../Services/daily_report_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/role_scaffold.dart';
 
 class KasirScreen extends StatefulWidget {
   final String userName;
@@ -24,6 +26,7 @@ class _KasirScreenState extends State<KasirScreen> {
   );
 
   String _selectedFilter = 'Semua';
+  int _selectedIndex = 0;
 
   String _filterStatus(String value) {
     switch (value) {
@@ -60,15 +63,15 @@ class _KasirScreenState extends State<KasirScreen> {
   Color _statusColor(String status) {
     switch (status) {
       case 'submitted':
-        return Colors.orange;
+        return AppColors.amber;
       case 'under_review':
-        return Colors.blue;
+        return const Color(0xFF55718B);
       case 'needs_correction':
-        return Colors.red;
+        return AppColors.danger;
       case 'verified':
-        return Colors.green;
+        return AppColors.forest;
       default:
-        return Colors.grey;
+        return AppColors.muted;
     }
   }
 
@@ -119,19 +122,30 @@ class _KasirScreenState extends State<KasirScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard Petugas Kasir'),
-        backgroundColor: const Color(0xFF1B5E20),
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout),
-            tooltip: 'Keluar',
-          ),
-        ],
-      ),
+    return RoleScaffold(
+      title: _selectedIndex == 0 ? 'Pemeriksaan Laporan' : 'Riwayat Laporan',
+      userName: widget.userName,
+      destinations: const [
+        RoleNavigationDestination(label: 'Antrian', icon: Icons.inbox_outlined),
+        RoleNavigationDestination(
+          label: 'Terverifikasi',
+          icon: Icons.verified_outlined,
+        ),
+      ],
+      selectedIndex: _selectedIndex,
+      onDestinationSelected: (index) {
+        setState(() {
+          _selectedIndex = index;
+          _selectedFilter = 'Semua';
+        });
+      },
+      actions: [
+        IconButton(
+          onPressed: _logout,
+          icon: const Icon(Icons.logout_rounded),
+          tooltip: 'Keluar',
+        ),
+      ],
       body: Column(
         children: [
           _buildHeader(),
@@ -143,45 +157,64 @@ class _KasirScreenState extends State<KasirScreen> {
   }
 
   Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      color: const Color(0xFFE8F5E9),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Selamat datang, ${widget.userName}',
-            style: const TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1B5E20),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1050),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.forest, AppColors.forestDark],
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'OPERASIONAL KASIR',
+                  style: TextStyle(
+                    color: AppColors.amber,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Halo, ${widget.userName}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'Cocokkan tiket fisik dan pembayaran sebelum laporan diverifikasi.',
+                  style: TextStyle(color: Colors.white70, height: 1.4),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 5),
-          const Text(
-            'Periksa laporan penutupan harian dari Petugas Loket.',
-            style: TextStyle(color: Colors.black87),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildFilter() {
-    const filters = [
-      'Semua',
-      'Menunggu',
-      'Diperiksa',
-      'Koreksi',
-      'Terverifikasi',
-    ];
+    if (_selectedIndex == 1) return const SizedBox.shrink();
+
+    const filters = ['Semua', 'Menunggu', 'Diperiksa', 'Koreksi'];
 
     return SizedBox(
-      height: 65,
+      height: 60,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         children: filters.map((filter) {
           final selected = _selectedFilter == filter;
 
@@ -195,7 +228,7 @@ class _KasirScreenState extends State<KasirScreen> {
                   _selectedFilter = filter;
                 });
               },
-              selectedColor: const Color(0xFFC8E6C9),
+              selectedColor: AppColors.sage.withValues(alpha: 0.22),
             ),
           );
         }).toList(),
@@ -223,95 +256,165 @@ class _KasirScreenState extends State<KasirScreen> {
           );
         }
 
-        final reports = (snapshot.data ?? []).where((report) {
-          // Draft tidak ditampilkan kepada Kasir.
-          if (report.status == 'draft') return false;
-
+        final allReports = (snapshot.data ?? [])
+            .where((report) => report.status != 'draft')
+            .toList();
+        final reports = allReports.where((report) {
+          if (_selectedIndex == 1) return report.status == 'verified';
+          if (report.status == 'verified') return false;
           if (_selectedFilter == 'Semua') return true;
-
           return report.status == _filterStatus(_selectedFilter);
         }).toList();
 
         reports.sort((a, b) => b.operationalDate.compareTo(a.operationalDate));
 
-        if (reports.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Text(
-                    'Belum ada laporan.',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  SizedBox(height: 5),
-                  Text(
-                    'Laporan dari Petugas Loket akan muncul di sini.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1050),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              children: [
+                _buildQueueSummary(allReports),
+                const SizedBox(height: 8),
+                if (reports.isEmpty)
+                  _buildEmptyState()
+                else
+                  ...reports.map(_buildReportCard),
+              ],
             ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            await Future.delayed(const Duration(milliseconds: 500));
-          },
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: reports.length,
-            itemBuilder: (context, index) {
-              return _buildReportCard(reports[index]);
-            },
           ),
         );
       },
     );
   }
 
+  Widget _buildQueueSummary(List<DailyReport> reports) {
+    final visible = _selectedIndex == 1
+        ? reports.where((report) => report.status == 'verified').length
+        : reports.where((report) => report.status == 'submitted').length;
+    final secondary = _selectedIndex == 1
+        ? reports.where((report) => report.status == 'verified').length
+        : reports
+              .where(
+                (report) =>
+                    report.status == 'under_review' ||
+                    report.status == 'needs_correction',
+              )
+              .length;
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _buildCountPill(
+          _selectedIndex == 1 ? 'Terverifikasi' : 'Menunggu pemeriksaan',
+          visible,
+          _selectedIndex == 1 ? AppColors.forest : AppColors.amber,
+        ),
+        if (_selectedIndex == 0)
+          _buildCountPill(
+            'Dalam pemeriksaan / koreksi',
+            secondary,
+            const Color(0xFF55718B),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCountPill(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$label  •  $count laporan',
+        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final isHistory = _selectedIndex == 1;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          children: [
+            Icon(
+              isHistory ? Icons.verified_outlined : Icons.inbox_outlined,
+              size: 44,
+              color: AppColors.sage,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isHistory
+                  ? 'Belum ada laporan terverifikasi.'
+                  : 'Antrian masih kosong.',
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              isHistory
+                  ? 'Laporan yang selesai diperiksa akan tersimpan di sini.'
+                  : 'Laporan dari Petugas Loket akan muncul di sini.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.muted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildReportCard(DailyReport report) {
     final data = report.submittedData;
-
     final statusColor = _statusColor(report.status);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: () => _openReport(report),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.calendar_month, color: Color(0xFF1B5E20)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      DateFormat(
-                        'dd MMMM yyyy',
-                        'id_ID',
-                      ).format(DateTime.parse(report.operationalDate)),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final date = Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_month_outlined,
+                        color: AppColors.forest,
+                        size: 20,
                       ),
-                    ),
-                  ),
-                  Container(
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          DateFormat(
+                            'dd MMMM yyyy',
+                            'id_ID',
+                          ).format(DateTime.parse(report.operationalDate)),
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                  final status = Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
+                      horizontal: 10,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.12),
@@ -322,59 +425,81 @@ class _KasirScreenState extends State<KasirScreen> {
                       style: TextStyle(
                         color: statusColor,
                         fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  );
 
+                  if (constraints.maxWidth < 480) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [date, const SizedBox(height: 10), status],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: date),
+                      status,
+                    ],
+                  );
+                },
+              ),
               const Divider(height: 22),
-
-              Text('Petugas Loket: ${report.loketName}'),
-
-              const SizedBox(height: 10),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total Pengunjung'),
-                  Text(
-                    '${data.totalVisitors} orang',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
+              _buildInfoRow('Petugas Loket', report.loketName),
+              _buildInfoRow('Total pengunjung', '${data.totalVisitors} orang'),
+              _buildInfoRow(
+                'Total pendapatan',
+                _currencyFormat.format(data.totalRevenue),
+                emphasized: true,
               ),
-
-              const SizedBox(height: 6),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total Pendapatan'),
-                  Text(
-                    _currencyFormat.format(data.totalRevenue),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1B5E20),
-                    ),
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 14),
-
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () => _openReport(report),
-                  icon: const Icon(Icons.fact_check),
-                  label: const Text('Periksa Laporan'),
+                  icon: Icon(
+                    _selectedIndex == 1
+                        ? Icons.visibility_outlined
+                        : Icons.fact_check_outlined,
+                  ),
+                  label: Text(
+                    _selectedIndex == 1
+                        ? 'Lihat detail laporan'
+                        : 'Periksa laporan',
+                  ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {bool emphasized = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: AppColors.muted, fontSize: 13),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: emphasized ? AppColors.forest : AppColors.ink,
+                fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -777,34 +902,39 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
 
             const SizedBox(height: 12),
 
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _startControllers[id],
-                    enabled: editable,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Nomor awal',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _endControllers[id],
-                    enabled: editable,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Nomor akhir',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final startField = TextField(
+                  controller: _startControllers[id],
+                  enabled: editable,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Nomor awal'),
+                );
+                final endField = TextField(
+                  controller: _endControllers[id],
+                  enabled: editable,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Nomor akhir'),
+                );
+
+                if (constraints.maxWidth < 520) {
+                  return Column(
+                    children: [
+                      startField,
+                      const SizedBox(height: 10),
+                      endField,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: startField),
+                    const SizedBox(width: 10),
+                    Expanded(child: endField),
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 10),
@@ -1079,16 +1209,17 @@ class _KasirReportDetailScreenState extends State<KasirReportDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pemeriksaan Laporan'),
-        backgroundColor: const Color(0xFF1B5E20),
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: const Text('Detail Pemeriksaan')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _report == null
           ? const Center(child: Text('Laporan tidak ditemukan.'))
-          : _buildReportDetail(_report!),
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1050),
+                child: _buildReportDetail(_report!),
+              ),
+            ),
     );
   }
 

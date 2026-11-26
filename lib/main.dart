@@ -8,15 +8,14 @@ import 'Screen/Loket/loket_screen.dart';
 import 'Screen/Kasir/kasir_screen.dart';
 import 'Screen/Pengelola/pengelola_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await initializeDateFormatting('id_ID', null);
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const LembahWilisApp());
 }
@@ -29,13 +28,7 @@ class LembahWilisApp extends StatelessWidget {
     return MaterialApp(
       title: 'Wisata Lembah Wilis',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.green,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF7F9F7),
-      ),
+      theme: AppTheme.light,
       home: const AuthWrapper(),
     );
   }
@@ -67,8 +60,7 @@ class AuthWrapper extends StatelessWidget {
               .doc(email)
               .get(),
           builder: (context, userSnapshot) {
-            if (userSnapshot.connectionState ==
-                ConnectionState.waiting) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
               return const LoadingScreen();
             }
 
@@ -80,8 +72,7 @@ class AuthWrapper extends StatelessWidget {
               );
             }
 
-            if (!userSnapshot.hasData ||
-                !userSnapshot.data!.exists) {
+            if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
               return const AccessErrorScreen(
                 message:
                     'Data akun tidak ditemukan di Firestore. '
@@ -124,21 +115,14 @@ class LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
 
 class AccessErrorScreen extends StatelessWidget {
   final String message;
 
-  const AccessErrorScreen({
-    super.key,
-    required this.message,
-  });
+  const AccessErrorScreen({super.key, required this.message});
 
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
@@ -153,24 +137,14 @@ class AccessErrorScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.lock_outline,
-                size: 64,
-                color: Colors.red,
-              ),
+              const Icon(Icons.lock_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
               const Text(
                 'Akses Tidak Tersedia',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-              ),
+              Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: _logout,

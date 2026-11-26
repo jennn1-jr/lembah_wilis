@@ -12,9 +12,7 @@ class DailyReportService {
     final pattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 
     if (!pattern.hasMatch(date)) {
-      throw ArgumentError(
-        'Format tanggal harus YYYY-MM-DD.',
-      );
+      throw ArgumentError('Format tanggal harus YYYY-MM-DD.');
     }
 
     final parsed = DateTime.tryParse(date);
@@ -207,10 +205,10 @@ class DailyReportService {
         .orderBy('operationalDate', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return DailyReport.fromFirestore(doc.data());
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return DailyReport.fromFirestore(doc.data());
+          }).toList();
+        });
   }
 
   /// Memantau laporan berdasarkan status.
@@ -220,10 +218,10 @@ class DailyReportService {
         .orderBy('operationalDate', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return DailyReport.fromFirestore(doc.data());
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return DailyReport.fromFirestore(doc.data());
+          }).toList();
+        });
   }
 
   /// Kasir mulai memeriksa laporan.
@@ -282,11 +280,8 @@ class DailyReportService {
       final data = snapshot.data()!;
       final status = data['status'];
 
-      if (status != 'under_review' &&
-          status != 'needs_correction') {
-        throw StateError(
-          'Laporan tidak sedang dalam proses pemeriksaan.',
-        );
+      if (status != 'under_review' && status != 'needs_correction') {
+        throw StateError('Laporan tidak sedang dalam proses pemeriksaan.');
       }
 
       transaction.set(discrepancyRef, {
@@ -335,8 +330,7 @@ class DailyReportService {
 
       final status = snapshot.data()!['status'];
 
-      if (status != 'under_review' &&
-          status != 'needs_correction') {
+      if (status != 'under_review' && status != 'needs_correction') {
         throw StateError('Laporan tidak dapat dikoreksi pada tahap ini.');
       }
 
@@ -380,8 +374,7 @@ class DailyReportService {
       final data = snapshot.data()!;
       final status = data['status'];
 
-      if (status != 'under_review' &&
-          status != 'needs_correction') {
+      if (status != 'under_review' && status != 'needs_correction') {
         throw StateError('Laporan belum siap diverifikasi.');
       }
 

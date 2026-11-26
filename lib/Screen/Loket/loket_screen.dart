@@ -1,19 +1,18 @@
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import '../../Models/daily_report_model.dart';
 import '../../Services/daily_report_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/role_scaffold.dart';
 
 class LoketScreen extends StatefulWidget {
   final String userName;
 
-  const LoketScreen({
-    super.key,
-    required this.userName,
-  });
+  const LoketScreen({super.key, required this.userName});
 
   @override
   State<LoketScreen> createState() => _LoketScreenState();
@@ -35,15 +34,14 @@ class _LoketScreenState extends State<LoketScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  int _selectedIndex = 0;
 
   DailyReport? _existingReport;
 
-  String get _operationalDate =>
-      DateFormat('yyyy-MM-dd').format(_selectedDate);
+  String get _operationalDate => DateFormat('yyyy-MM-dd').format(_selectedDate);
 
   bool get _isLocked =>
-      _existingReport != null &&
-      _existingReport!.status != 'draft';
+      _existingReport != null && _existingReport!.status != 'draft';
 
   @override
   void initState() {
@@ -175,15 +173,11 @@ class _LoketScreenState extends State<LoketScreen> {
       final free = int.tryParse(_freeControllers[id]!.text.trim());
 
       if (start.isEmpty || end.isEmpty) {
-        throw Exception(
-          'Rentang nomor seri ${ticket['name']} belum lengkap.',
-        );
+        throw Exception('Rentang nomor seri ${ticket['name']} belum lengkap.');
       }
 
       if (free == null) {
-        throw Exception(
-          'Jumlah tiket gratis ${ticket['name']} tidak valid.',
-        );
+        throw Exception('Jumlah tiket gratis ${ticket['name']} tidak valid.');
       }
 
       summaries[id] = TicketSummary.fromInput(
@@ -302,10 +296,7 @@ class _LoketScreenState extends State<LoketScreen> {
             : 'Draft laporan berhasil disimpan.',
       );
     } catch (e) {
-      _showMessage(
-        'Gagal memproses laporan: $e',
-        isError: true,
-      );
+      _showMessage('Gagal memproses laporan: $e', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -333,10 +324,10 @@ class _LoketScreenState extends State<LoketScreen> {
       controller: controller,
       enabled: !_isLocked && !_isSaving,
       keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        border: const OutlineInputBorder(),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 14,
@@ -359,18 +350,11 @@ class _LoketScreenState extends State<LoketScreen> {
           children: [
             Text(
               name,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              'Harga tiket: ${NumberFormat.currency(
-                locale: 'id_ID',
-                symbol: 'Rp',
-                decimalDigits: 0,
-              ).format(price)}',
+              'Harga tiket: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp', decimalDigits: 0).format(price)}',
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -381,24 +365,37 @@ class _LoketScreenState extends State<LoketScreen> {
             ),
             const SizedBox(height: 8),
 
-            Row(
-              children: [
-                Expanded(
-                  child: _buildNumberField(
-                    label: 'Nomor Awal',
-                    controller: _startControllers[id]!,
-                    hint: 'Contoh: 0001',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildNumberField(
-                    label: 'Nomor Akhir',
-                    controller: _endControllers[id]!,
-                    hint: 'Contoh: 0050',
-                  ),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final startField = _buildNumberField(
+                  label: 'Nomor Awal',
+                  controller: _startControllers[id]!,
+                  hint: 'Contoh: 0001',
+                );
+                final endField = _buildNumberField(
+                  label: 'Nomor Akhir',
+                  controller: _endControllers[id]!,
+                  hint: 'Contoh: 0050',
+                );
+
+                if (constraints.maxWidth < 520) {
+                  return Column(
+                    children: [
+                      startField,
+                      const SizedBox(height: 12),
+                      endField,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: startField),
+                    const SizedBox(width: 12),
+                    Expanded(child: endField),
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 16),
@@ -414,10 +411,7 @@ class _LoketScreenState extends State<LoketScreen> {
             const Text(
               'Jumlah tiket dan tiket berbayar akan dihitung otomatis '
               'berdasarkan rentang nomor seri.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),
@@ -434,10 +428,7 @@ class _LoketScreenState extends State<LoketScreen> {
           children: [
             const Text(
               'Rekap Pembayaran Harian',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
 
@@ -460,10 +451,7 @@ class _LoketScreenState extends State<LoketScreen> {
             const Text(
               'Masukkan total pembayaran untuk kedua kategori tiket '
               'secara gabungan, bukan per kategori.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),
@@ -500,12 +488,15 @@ class _LoketScreenState extends State<LoketScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.sage.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         'Status laporan: $label',
-        style: const TextStyle(fontWeight: FontWeight.w600),
+        style: const TextStyle(
+          color: AppColors.forest,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -530,128 +521,374 @@ class _LoketScreenState extends State<LoketScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Petugas Loket'),
-        actions: [
-          IconButton(
-            tooltip: 'Keluar',
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
-          ),
-        ],
+  Widget _buildOverviewMetric(String label, String value, IconData icon) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.forest),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.forest,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _ticketTypes.isEmpty
-              ? const Center(
-                  child: Text('Tidak ada kategori tiket aktif.'),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+    );
+  }
+
+  Widget _buildOverview() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final reportData = _existingReport?.submittedData;
+    final tickets = reportData?.ticketSummary.values ?? const [];
+    final paid = tickets.fold<int>(
+      0,
+      (total, ticket) => total + ticket.paidCount,
+    );
+    final free = tickets.fold<int>(
+      0,
+      (total, ticket) => total + ticket.freeCount,
+    );
+    final dateLabel = DateFormat(
+      'EEEE, dd MMMM yyyy',
+      'id_ID',
+    ).format(_selectedDate);
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1050),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.forest, AppColors.forestDark],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const Text(
+                        'OPERASIONAL LOKET',
+                        style: TextStyle(
+                          color: AppColors.amber,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                         'Selamat datang, ${widget.userName}',
                         style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       const Text(
-                        'Buat laporan penutupan operasional harian.',
+                        'Siapkan rekap tiket dan pembayaran untuk penutupan harian.',
+                        style: TextStyle(color: Colors.white70, height: 1.4),
                       ),
-                      const SizedBox(height: 20),
-
-                      InkWell(
-                        onTap: _selectDate,
-                        child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Tanggal Operasional',
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_month),
-                          ),
-                          child: Text(
-                            DateFormat(
-                              'dd MMMM yyyy',
-                              'id_ID',
-                            ).format(_selectedDate),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      _buildStatus(),
-
-                      const SizedBox(height: 20),
-
-                      const Text(
-                        'Data Tiket',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      ..._ticketTypes.map(_buildTicketCard),
-
-                      const SizedBox(height: 8),
-
-                      _buildPaymentSection(),
-
-                      const SizedBox(height: 20),
-
-                      if (_isLocked)
-                        const Text(
-                          'Laporan sudah dikirim. Perubahan selanjutnya '
-                          'hanya dapat dilakukan melalui proses pemeriksaan '
-                          'oleh Petugas Kasir.',
-                          style: TextStyle(color: Colors.orange),
-                        )
-                      else
-                        Column(
-                          children: [
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed:
-                                    _isSaving ? null : _saveDraft,
-                                icon: const Icon(Icons.save),
-                                label: const Text('Simpan Draft'),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed:
-                                    _isSaving ? null : _submitReport,
-                                icon: const Icon(Icons.send),
-                                label: const Text('Kirim Laporan ke Kasir'),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                      if (_isSaving)
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 18),
+                Card(
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 8,
+                    ),
+                    leading: const CircleAvatar(
+                      backgroundColor: AppColors.canvas,
+                      child: Icon(
+                        Icons.calendar_month_outlined,
+                        color: AppColors.forest,
+                      ),
+                    ),
+                    title: const Text(
+                      'Tanggal operasional',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                    subtitle: Text(
+                      dateLabel,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: _isSaving ? null : _selectDate,
+                      child: const Text('Ubah'),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildStatus(),
+                const SizedBox(height: 18),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = constraints.maxWidth >= 760 ? 2 : 1;
+                    const spacing = 12.0;
+                    final width =
+                        (constraints.maxWidth - spacing * (columns - 1)) /
+                        columns;
+                    final metrics = [
+                      _buildOverviewMetric(
+                        'Total pengunjung',
+                        '${reportData?.totalVisitors ?? 0} orang',
+                        Icons.groups_outlined,
+                      ),
+                      _buildOverviewMetric(
+                        'Tiket berbayar',
+                        '$paid lembar',
+                        Icons.confirmation_number_outlined,
+                      ),
+                      _buildOverviewMetric(
+                        'Tiket gratis',
+                        '$free lembar',
+                        Icons.card_giftcard_outlined,
+                      ),
+                      _buildOverviewMetric(
+                        'Total pendapatan',
+                        NumberFormat.currency(
+                          locale: 'id_ID',
+                          symbol: 'Rp',
+                          decimalDigits: 0,
+                        ).format(reportData?.totalRevenue ?? 0),
+                        Icons.account_balance_wallet_outlined,
+                      ),
+                    ];
+
+                    return Wrap(
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      children: [
+                        for (final metric in metrics)
+                          SizedBox(width: width, child: metric),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 18),
+                if (_ticketTypes.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'Belum ada kategori tiket aktif. Hubungi Pengelola sebelum membuat laporan.',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _isLoading || _isSaving
+                        ? null
+                        : () => setState(() => _selectedIndex = 1),
+                    icon: const Icon(Icons.edit_note_rounded),
+                    label: const Text('Buka laporan harian'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReportForm() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_ticketTypes.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Tidak ada kategori tiket aktif. Hubungi Pengelola untuk menyiapkannya.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Laporan Harian',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Masukkan rentang tiket fisik dan rekap pembayaran.',
+                style: TextStyle(color: AppColors.muted),
+              ),
+              const SizedBox(height: 18),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _selectDate,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Tanggal operasional',
+                    suffixIcon: Icon(Icons.calendar_month_outlined),
+                  ),
+                  child: Text(
+                    DateFormat('dd MMMM yyyy', 'id_ID').format(_selectedDate),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _buildStatus(),
+              const SizedBox(height: 20),
+              const Text(
+                'Data tiket',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              ..._ticketTypes.map(_buildTicketCard),
+              const SizedBox(height: 4),
+              _buildPaymentSection(),
+              const SizedBox(height: 18),
+              if (_isLocked)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.amber.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Laporan sudah dikirim. Perubahan selanjutnya hanya dapat dilakukan melalui proses pemeriksaan oleh Petugas Kasir.',
+                    style: TextStyle(color: AppColors.ink, height: 1.4),
+                  ),
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final buttons = [
+                      OutlinedButton.icon(
+                        onPressed: _isSaving ? null : _saveDraft,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Simpan draft'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _isSaving ? null : _submitReport,
+                        icon: const Icon(Icons.send_rounded),
+                        label: const Text('Kirim ke Kasir'),
+                      ),
+                    ];
+
+                    if (constraints.maxWidth < 520) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          buttons[0],
+                          const SizedBox(height: 10),
+                          buttons[1],
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: buttons[0]),
+                        const SizedBox(width: 12),
+                        Expanded(child: buttons[1]),
+                      ],
+                    );
+                  },
+                ),
+              if (_isSaving)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    return RoleScaffold(
+      title: 'Operasional Loket',
+      userName: widget.userName,
+      destinations: const [
+        RoleNavigationDestination(
+          label: 'Ringkasan',
+          icon: Icons.dashboard_outlined,
+        ),
+        RoleNavigationDestination(
+          label: 'Laporan harian',
+          icon: Icons.receipt_long_outlined,
+        ),
+      ],
+      selectedIndex: _selectedIndex,
+      onDestinationSelected: (index) {
+        setState(() {
+          _selectedIndex = index;
+        });
+      },
+      actions: [
+        IconButton(
+          tooltip: 'Keluar',
+          icon: const Icon(Icons.logout_rounded),
+          onPressed: () async {
+            await FirebaseAuth.instance.signOut();
+          },
+        ),
+      ],
+      body: _selectedIndex == 0 ? _buildOverview() : _buildReportForm(),
     );
   }
 }

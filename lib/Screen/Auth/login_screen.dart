@@ -1,6 +1,7 @@
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -58,7 +59,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Tidak perlu Navigator karena AuthWrapper
       // akan mendeteksi perubahan status autentikasi.
-
     } on FirebaseAuthException catch (e) {
       String message;
 
@@ -109,138 +109,253 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Widget _buildBrandPanel({required bool compact}) {
+    final content = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: compact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: compact ? 54 : 68,
+          height: compact ? 54 : 68,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+          ),
+          child: Icon(
+            Icons.terrain_rounded,
+            color: Colors.white,
+            size: compact ? 30 : 38,
+          ),
+        ),
+        SizedBox(height: compact ? 12 : 28),
+        Text(
+          'Wisata Lembah Wilis',
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: compact ? 23 : 34,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Satu ruang kerja untuk operasional tiket, pemeriksaan, '
+          'dan laporan wisata.',
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.78),
+            fontSize: compact ? 13 : 16,
+            height: 1.5,
+          ),
+        ),
+        if (!compact) ...[
+          const SizedBox(height: 36),
+          for (final item in const [
+            (Icons.fact_check_outlined, 'Proses laporan yang terstruktur'),
+            (Icons.verified_user_outlined, 'Pemeriksaan berlapis'),
+            (Icons.insights_outlined, 'Ringkasan operasional terverifikasi'),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                children: [
+                  Icon(item.$1, size: 20, color: AppColors.amber),
+                  const SizedBox(width: 12),
+                  Text(
+                    item.$2,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ],
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 24 : 72,
+        vertical: compact ? 28 : 64,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.forest, AppColors.forestDark],
+        ),
+      ),
+      child: compact
+          ? Center(child: content)
+          : Align(alignment: Alignment.centerLeft, child: content),
+    );
+  }
+
+  Widget _buildLoginForm() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Selamat datang kembali',
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Masuk menggunakan akun petugas yang terdaftar.',
+                style: TextStyle(color: AppColors.muted, height: 1.45),
+              ),
+              const SizedBox(height: 28),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.username],
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  labelText: 'Email petugas',
+                  prefixIcon: Icon(Icons.alternate_email_rounded),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                onSubmitted: (_) {
+                  if (!_isLoading) _login();
+                },
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword
+                        ? 'Tampilkan password'
+                        : 'Sembunyikan password',
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        color: AppColors.danger,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            color: AppColors.danger,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _isLoading ? null : _login,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Masuk ke aplikasi'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F4),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 900) {
+              return Row(
+                children: [
+                  Expanded(flex: 5, child: _buildBrandPanel(compact: false)),
+                  Expanded(
+                    flex: 4,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(48),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 460),
+                          child: _buildLoginForm(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildBrandPanel(compact: true),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 460),
+                      child: _buildLoginForm(),
+                    ),
+                  ),
+                ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.terrain_rounded,
-                      size: 56,
-                      color: Color(0xFF1B5E20),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      'Lembah Wilis',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1B5E20),
-                      ),
-                    ),
-
-                    const Text(
-                      'Sistem Tiket & Manajemen Wisata',
-                      style: TextStyle(
-                        color: Colors.black54,
-                        fontSize: 13,
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Input email.
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: 'Email Petugas',
-                        prefixIcon: Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Input password.
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) {
-                        if (!_isLoading) _login();
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-
-                    // Pesan kesalahan.
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 13,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-
-                    const SizedBox(height: 24),
-
-                    // Tombol login.
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: FilledButton(
-                        onPressed: _isLoading ? null : _login,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF1B5E20),
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'Masuk',
-                                style: TextStyle(fontSize: 16),
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
